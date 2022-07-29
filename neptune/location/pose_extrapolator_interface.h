@@ -25,6 +25,10 @@ class PoseExtrapolatorInterface {
     Eigen::Vector3d current_velocity;
     Eigen::Quaterniond gravity_from_tracking;
   };
+
+  static std::unique_ptr<PoseExtrapolatorInterface> CreateWithImuData(
+      const std::vector<sensor::ImuData>& imu_data);
+
   PoseExtrapolatorInterface(const PoseExtrapolatorInterface&) = delete;
   PoseExtrapolatorInterface& operator=(const PoseExtrapolatorInterface&) =
       delete;
@@ -40,6 +44,9 @@ class PoseExtrapolatorInterface {
   // Returns the current gravity alignment estimate as a rotation from
   // the tracking frame into a gravity aligned frame.
   virtual Eigen::Quaterniond EstimateGravityOrientation(common::Time time) = 0;
+
+ protected:
+  PoseExtrapolatorInterface() {}
 };
 }  // namespace location
 }  // namespace neptune
