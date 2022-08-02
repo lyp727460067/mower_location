@@ -12,9 +12,7 @@ constexpr int kAccStdLimit = 3.;
 class Initializer {
  public:
   Initializer(const Eigen::Vector3d& init_I_p_Gps);
-
   void AddImuData(const ImuDataPtr imu_data_ptr);
-
   bool AddGpsPositionData(const GpsPositionDataPtr gps_data_ptr, State* state);
 
  private:

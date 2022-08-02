@@ -10,18 +10,24 @@
 namespace neptune {
 namespace location {
 struct EkfOption {
-  double acc_noise;
-  double gyro_noise;
-  double acc_bias_noise;
-  double gyro_bias_noise;
+  double acc_noise = 1e-2;
+  double gyro_noise = 1e-4;
+  double acc_bias_noise = 1e-4;
+  double gyro_bias_noise = 1e-8;
   Eigen::Vector3d imutogps_extristric;
 };
-
 
 class ImuGpsLocalizer {
  public:
   ImuGpsLocalizer(const EkfOption& option);
-  ImuGpsLocalizer(const ImuGpsLocalizer& rhs){};
+  ImuGpsLocalizer(const ImuGpsLocalizer& rhs)
+      : initialized_(rhs.initialized_), init_lla_(rhs.init_lla_) {
+    initializer_ = std::make_unique<Initializer>(*rhs.initializer_);
+    imu_processor_ = std::make_unique<ImuProcessor>(*rhs.imu_processor_);
+    gps_processor_ = std::make_unique<GpsProcessor>(*rhs.gps_processor_);
+    state_ = rhs.state_;
+    state_.imu_data_ptr = std::make_shared<ImuData>(*rhs.state_.imu_data_ptr);
+  };
   bool ProcessImuData(const ImuDataPtr imu_data_ptr);
   const State& GetState() { return state_; }
   bool ProcessGpsPositionData(const GpsPositionDataPtr gps_data_ptr);

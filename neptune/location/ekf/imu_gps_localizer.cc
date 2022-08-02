@@ -25,6 +25,7 @@ bool ImuGpsLocalizer::ProcessImuData(const ImuDataPtr imu_data_ptr) {
 
   // Convert ENU state to lla.
   ConvertENUToLLA(init_lla_, state_.G_p_I, &(state_.lla));
+  LOG(INFO)<<state_.G_p_I;
   // *fused_state = state_;
   return true;
 }

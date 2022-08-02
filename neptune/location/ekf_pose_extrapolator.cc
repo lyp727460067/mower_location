@@ -62,7 +62,7 @@ void PoseExtrapolatorEkf::PredictImu(ImuGpsLocalizer* imu_gps_location,
                                      const sensor::ImuData& imu_data) {
   imu_gps_location->ProcessImuData(std::make_shared<ImuData>(
       ImuData{common::ToSeconds(imu_data.time - common::FromUniversal(0)),
-              imu_data.linear_acceleration, imu_data.linear_acceleration}));
+              imu_data.linear_acceleration, imu_data.angular_velocity}));
 }
 
 void PoseExtrapolatorEkf::PredictEkfWithImu(ImuGpsLocalizer* imu_gps_location,
@@ -71,6 +71,7 @@ void PoseExtrapolatorEkf::PredictEkfWithImu(ImuGpsLocalizer* imu_gps_location,
   while (it != imu_data_.end() && it->time < time) {
     const auto& imu_data = *it;
     PredictImu(imu_gps_location, *it);
+    ++it;
   }
 }
 
@@ -79,10 +80,13 @@ void PoseExtrapolatorEkf::AddFixedFramePoseData(
   const auto& time = fixed_frame_pose_data.time;
   PredictEkfWithImu(ekf_imu_gps_fustion_.get(), time);
   const auto& fix_data = fixed_frame_pose_data;
-  ekf_imu_gps_fustion_->ProcessGpsPositionData(
-      std::make_shared<GpsPositionData>(GpsPositionData{
-          common::ToSeconds(fix_data.time - common::FromUniversal(0)),
-          fix_data.pose.translation(), fix_data.cov}));
+  if (!ekf_imu_gps_fustion_->ProcessGpsPositionData(
+          std::make_shared<GpsPositionData>(GpsPositionData{
+              common::ToSeconds(fix_data.time - common::FromUniversal(0)),
+              fix_data.pose.translation(), fix_data.cov}))) {
+    AddPose(fix_data.time, transform::Rigid3d::Identity());
+    return;
+  }
   ekf_imu_gps_fustion_extrapolte_ =
       std::make_unique<ImuGpsLocalizer>(*ekf_imu_gps_fustion_);
   AddPose(fix_data.time,
@@ -92,6 +96,9 @@ void PoseExtrapolatorEkf::AddFixedFramePoseData(
 
 transform::Rigid3d PoseExtrapolatorEkf::ExtrapolatePose(
     const common::Time time) {
+  if (timed_pose_queue_.empty()) return transform::Rigid3d::Identity();
+  if (ekf_imu_gps_fustion_extrapolte_ == nullptr)
+    return transform::Rigid3d::Identity();
   const TimedPose& newest_timed_pose = timed_pose_queue_.back();
   CHECK_GE(time, newest_timed_pose.time);
   if (cached_extrapolated_pose_.time != time) {
