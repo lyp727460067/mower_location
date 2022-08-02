@@ -1,10 +1,10 @@
-#include "imu_gps_localizer/initializer.h"
+#include "initializer.h"
 
 #include <glog/logging.h>
 
 #include <Eigen/Dense>
 
-#include "imu_gps_localizer/utils.h"
+#include "utils.h"
 namespace neptune {
 namespace location {
 

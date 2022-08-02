@@ -1,7 +1,9 @@
+#include "location/ekf_pose_extrapolator.h"
+
 #include <algorithm>
+
 #include "glog/logging.h"
 #include "transform/transform.h"
-#include "location/ekf_pose_extrapolator.h"
 namespace neptune {
 namespace location {
 PoseExtrapolatorEkf::PoseExtrapolatorEkf(
@@ -12,7 +14,15 @@ PoseExtrapolatorEkf::PoseExtrapolatorEkf(
 };
 std::unique_ptr<PoseExtrapolatorEkf> PoseExtrapolatorEkf::InitializeWithImu() {}
 void PoseExtrapolatorEkf::AddPose(const common::Time time,
-                                  const transform::Rigid3d& pose) {}
+                                  const transform::Rigid3d& pose) {
+  timed_pose_queue_.push_back(TimedPose{time, pose});
+  while (timed_pose_queue_.size() > 2 &&
+         timed_pose_queue_[1].time <= time - common::FromSeconds(0.001)) {
+    timed_pose_queue_.pop_front();
+  }
+  TrimImuData();
+  TrimOdometryData();
+}
 
 void PoseExtrapolatorEkf::AddImuData(const sensor::ImuData& imu_data) {
   if (timed_pose_queue_.empty()) {
@@ -28,17 +38,11 @@ void PoseExtrapolatorEkf::AddImuData(const sensor::ImuData& imu_data) {
 void PoseExtrapolatorEkf::AddOdometryData(
     const sensor::OdometryData& odometry_data) {}
 
-transform::Rigid3d PoseExtrapolatorEkf::ExtrapolatePose(
-    const common::Time time) {}
-Eigen::Quaterniond PoseExtrapolatorEkf::EstimateGravityOrientation(
-    const common::Time time) {
-  ImuTracker imu_tracker = *imu_tracker_;
-  AdvanceImuTracker(time, &imu_tracker);
-  return imu_tracker.orientation();
-}
 
-void PoseExtrapolatorEkf::UpdateVelocitiesFromPoses() {
-}
+Eigen::Quaterniond PoseExtrapolatorEkf::EstimateGravityOrientation(
+    const common::Time time) {}
+
+void PoseExtrapolatorEkf::UpdateVelocitiesFromPoses() {}
 
 void PoseExtrapolatorEkf::TrimImuData() {
   while (imu_data_.size() > 1 && !timed_pose_queue_.empty() &&
@@ -54,96 +58,63 @@ void PoseExtrapolatorEkf::TrimOdometryData() {
   }
 }
 
-void PoseExtrapolatorEkf::PredictEkfWithImu(const common::Time& time) {
+void PoseExtrapolatorEkf::PredictImu(ImuGpsLocalizer* imu_gps_location,
+                                     const sensor::ImuData& imu_data) {
+  imu_gps_location->ProcessImuData(std::make_shared<ImuData>(
+      ImuData{common::ToSeconds(imu_data.time - common::FromUniversal(0)),
+              imu_data.linear_acceleration, imu_data.linear_acceleration}));
+}
+
+void PoseExtrapolatorEkf::PredictEkfWithImu(ImuGpsLocalizer* imu_gps_location,
+                                            const common::Time& time) {
   auto it = imu_data_.begin();
   while (it != imu_data_.end() && it->time < time) {
-    ekf_imu_gps_fustion_->ProcessImuData({
-        common::ToSeconds(time-common::Time(0)),
-    });
+    const auto& imu_data = *it;
+    PredictImu(imu_gps_location, *it);
   }
 }
 
 void PoseExtrapolatorEkf::AddFixedFramePoseData(
     const sensor::FixedFramePoseData& fixed_frame_pose_data) {
-  const auto &time = fixed_frame_pose_data.time;
+  const auto& time = fixed_frame_pose_data.time;
+  PredictEkfWithImu(ekf_imu_gps_fustion_.get(), time);
+  const auto& fix_data = fixed_frame_pose_data;
+  ekf_imu_gps_fustion_->ProcessGpsPositionData(
+      std::make_shared<GpsPositionData>(GpsPositionData{
+          common::ToSeconds(fix_data.time - common::FromUniversal(0)),
+          fix_data.pose.translation(), fix_data.cov}));
+  ekf_imu_gps_fustion_extrapolte_ =
+      std::make_unique<ImuGpsLocalizer>(*ekf_imu_gps_fustion_);
+  AddPose(fix_data.time,
+          transform::Rigid3d{fused_state_.G_p_I,
+                             Eigen::Quaterniond(fused_state_.G_R_I)});
+}
 
-  // timed_pose_queue_.push_back(TimedPose{time, pose});
-  // while (timed_pose_queue_.size() > 2 &&
-  //        timed_pose_queue_[1].time <= time - pose_queue_duration_) {
-  //   timed_pose_queue_.pop_front();
-  // }
-  PredictEkfWithImu();
-
-  // UpdateVelocitiesFromPoses();
-  // AdvanceImuTracker(time, imu_tracker_.get());
-  // TrimImuData();
-  // TrimOdometryData();
-
+transform::Rigid3d PoseExtrapolatorEkf::ExtrapolatePose(
+    const common::Time time) {
+  const TimedPose& newest_timed_pose = timed_pose_queue_.back();
+  CHECK_GE(time, newest_timed_pose.time);
+  if (cached_extrapolated_pose_.time != time) {
+    PredictEkfWithImu(ekf_imu_gps_fustion_extrapolte_.get(), time);
+    auto state = ekf_imu_gps_fustion_extrapolte_->GetState();
+    cached_extrapolated_pose_ = TimedPose{
+        time, transform::Rigid3d{state.G_p_I, Eigen::Quaterniond(state.G_R_I)}};
+  }
+  return cached_extrapolated_pose_.pose;
 }
 
 void PoseExtrapolatorEkf::AdvanceImuTracker(
-    const common::Time time, ImuTracker* const imu_tracker) const {
-  CHECK_GE(time, imu_tracker->time());
-  if (imu_data_.empty() || time < imu_data_.front().time) {
-    // There is no IMU data until 'time', so we advance the ImuTracker and use
-    // the angular velocities from poses and fake gravity to help 2D stability.
-    imu_tracker->Advance(time);
-    imu_tracker->AddImuLinearAccelerationObservation(Eigen::Vector3d::UnitZ());
-    imu_tracker->AddImuAngularVelocityObservation(
-        odometry_data_.size() < 2 ? angular_velocity_from_poses_
-                                  : angular_velocity_from_odometry_);
-    return;
-  }
-  if (imu_tracker->time() < imu_data_.front().time) {
-    // Advance to the beginning of 'imu_data_'.
-    imu_tracker->Advance(imu_data_.front().time);
-  }
-  auto it = std::lower_bound(
-      imu_data_.begin(), imu_data_.end(), imu_tracker->time(),
-      [](const sensor::ImuData& imu_data, const common::Time& time) {
-        return imu_data.time < time;
-      });
-  while (it != imu_data_.end() && it->time < time) {
-    imu_tracker->Advance(it->time);
-    imu_tracker->AddImuLinearAccelerationObservation(it->linear_acceleration);
-    imu_tracker->AddImuAngularVelocityObservation(it->angular_velocity);
-    ++it;
-  }
-  imu_tracker->Advance(time);
-}
+    const common::Time time, ImuTracker* const imu_tracker) const {}
 
 Eigen::Quaterniond PoseExtrapolatorEkf::ExtrapolateRotation(
-    const common::Time time, ImuTracker* const imu_tracker) const {
-  CHECK_GE(time, imu_tracker->time());
-  AdvanceImuTracker(time, imu_tracker);
-  const Eigen::Quaterniond last_orientation = imu_tracker_->orientation();
-  return last_orientation.inverse() * imu_tracker->orientation();
-}
+    const common::Time time, ImuTracker* const imu_tracker) const {}
 
 Eigen::Vector3d PoseExtrapolatorEkf::ExtrapolateTranslation(common::Time time) {
-  const TimedPose& newest_timed_pose = timed_pose_queue_.back();
-  const double extrapolation_delta =
-      common::ToSeconds(time - newest_timed_pose.time);
-  if (odometry_data_.size() < 2) {
-    return extrapolation_delta * linear_velocity_from_poses_;
-  }
-  return extrapolation_delta * linear_velocity_from_odometry_;
+
 }
 
 PoseExtrapolatorEkf::ExtrapolationResult
 PoseExtrapolatorEkf::ExtrapolatePosesWithGravity(
-    const std::vector<common::Time>& times) {
-  std::vector<transform::Rigid3f> poses;
-  for (auto it = times.begin(); it != std::prev(times.end()); ++it) {
-    poses.push_back(ExtrapolatePose(*it).cast<float>());
-  }
-
-  const Eigen::Vector3d current_velocity = odometry_data_.size() < 2
-                                               ? linear_velocity_from_poses_
-                                               : linear_velocity_from_odometry_;
-  return ExtrapolationResult{poses, ExtrapolatePose(times.back()),
-                             current_velocity,
-                             EstimateGravityOrientation(times.back())};
-}
+    const std::vector<common::Time>& times) {}
 }  // namespace location
 }  // namespace neptune

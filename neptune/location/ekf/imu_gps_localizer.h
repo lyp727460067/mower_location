@@ -21,8 +21,9 @@ struct EkfOption {
 class ImuGpsLocalizer {
  public:
   ImuGpsLocalizer(const EkfOption& option);
+  ImuGpsLocalizer(const ImuGpsLocalizer& rhs){};
   bool ProcessImuData(const ImuDataPtr imu_data_ptr);
-
+  const State& GetState() { return state_; }
   bool ProcessGpsPositionData(const GpsPositionDataPtr gps_data_ptr);
 
  private:

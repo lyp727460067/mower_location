@@ -2,7 +2,7 @@
 #define INITRALIZER_H
 #include <deque>
 
-#include "imu_gps_localizer/base_type.h"
+#include "base_type.h"
 namespace neptune {
 namespace location {
 

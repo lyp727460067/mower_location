@@ -1,7 +1,7 @@
 #ifndef _UTILS_H
 #define _UTILS_H
 #include <Eigen/Core>
-#include <LocalCartesian.hpp>
+#include <GeographicLib/include/LocalCartesian.hpp>
 namespace neptune {
 namespace location {
 

@@ -16,6 +16,7 @@ namespace sensor {
 struct FixedFramePoseData {
   common::Time time;
   transform::Rigid3d pose;
+  Eigen::Matrix3d cov;  // Covariance in m^2.
 };
 
 }  // namespace sensor
