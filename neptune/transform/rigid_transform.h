@@ -4,7 +4,7 @@
 #include <cmath>
 #include <iostream>
 #include <string>
-
+#include <strstream>
 #include "Eigen/Core"
 #include "Eigen/Geometry"
 #include "common/math.h"
@@ -142,12 +142,18 @@ class Rigid3 {
     return Rigid3(translation, rotation);
   }
 
-  // std::string DebugString() const {
-  //   return absl::Substitute("{ t: [$0, $1, $2], q: [$3, $4, $5, $6] }",
-  //                           translation().x(), translation().y(),
-  //                           translation().z(), rotation().w(), rotation().x(),
-  //                           rotation().y(), rotation().z());
-  // }
+  std::string DebugString() const {
+    std::stringstream info;
+    info << "{ t: [" << translation().x() << " " << translation().y() << " "
+         << translation().z() << " ]"
+         << "q : [ q: " << rotation().w() << " " << rotation().x() << " "
+         << rotation().y() << " " << rotation().z() << " ]";
+    return info.str();
+    // return absl::Substitute("{ t: [$0, $1, $2], q: [$3, $4, $5, $6] }",
+    //                         translation().x(), translation().y(),
+    //                         translation().z(), rotation().w(),
+    //                         rotation().x(), rotation().y(), rotation().z());
+  }
 
   bool IsValid() const {
     return !std::isnan(translation_.x()) && !std::isnan(translation_.y()) &&

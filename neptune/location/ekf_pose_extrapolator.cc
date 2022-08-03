@@ -12,7 +12,9 @@ PoseExtrapolatorEkf::PoseExtrapolatorEkf(
                                 transform::Rigid3d::Identity()} {
   ekf_imu_gps_fustion_ = std::make_unique<ImuGpsLocalizer>(option.ekf_option);
 };
-std::unique_ptr<PoseExtrapolatorEkf> PoseExtrapolatorEkf::InitializeWithImu() {}
+std::unique_ptr<PoseExtrapolatorEkf> PoseExtrapolatorEkf::InitializeWithImu() {
+
+}
 void PoseExtrapolatorEkf::AddPose(const common::Time time,
                                   const transform::Rigid3d& pose) {
   timed_pose_queue_.push_back(TimedPose{time, pose});
@@ -25,14 +27,14 @@ void PoseExtrapolatorEkf::AddPose(const common::Time time,
 }
 
 void PoseExtrapolatorEkf::AddImuData(const sensor::ImuData& imu_data) {
-  if (timed_pose_queue_.empty()) {
-    return;
-  }
-  if (imu_data.time < timed_pose_queue_.back().time) {
-    return;
-  }
+  // if (timed_pose_queue_.empty()) {
+  //   return;
+  // }
+  // if (imu_data.time < timed_pose_queue_.back().time) {
+  //   return;
+  // }
   imu_data_.push_back(imu_data);
-  TrimImuData();
+  // TrimImuData();
 }
 
 void PoseExtrapolatorEkf::AddOdometryData(
@@ -69,7 +71,6 @@ void PoseExtrapolatorEkf::PredictEkfWithImu(ImuGpsLocalizer* imu_gps_location,
                                             const common::Time& time) {
   auto it = imu_data_.begin();
   while (it != imu_data_.end() && it->time < time) {
-    const auto& imu_data = *it;
     PredictImu(imu_gps_location, *it);
     ++it;
   }
@@ -78,6 +79,7 @@ void PoseExtrapolatorEkf::PredictEkfWithImu(ImuGpsLocalizer* imu_gps_location,
 void PoseExtrapolatorEkf::AddFixedFramePoseData(
     const sensor::FixedFramePoseData& fixed_frame_pose_data) {
   const auto& time = fixed_frame_pose_data.time;
+ 
   PredictEkfWithImu(ekf_imu_gps_fustion_.get(), time);
   const auto& fix_data = fixed_frame_pose_data;
   if (!ekf_imu_gps_fustion_->ProcessGpsPositionData(
@@ -87,6 +89,7 @@ void PoseExtrapolatorEkf::AddFixedFramePoseData(
     AddPose(fix_data.time, transform::Rigid3d::Identity());
     return;
   }
+  LOG(INFO)<<"updata";
   ekf_imu_gps_fustion_extrapolte_ =
       std::make_unique<ImuGpsLocalizer>(*ekf_imu_gps_fustion_);
   AddPose(fix_data.time,

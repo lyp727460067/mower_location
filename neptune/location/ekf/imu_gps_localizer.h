@@ -7,6 +7,7 @@
 #include "gps_processor.h"
 #include "imu_processor.h"
 #include "initializer.h"
+#include "glog/logging.h"
 namespace neptune {
 namespace location {
 struct EkfOption {

@@ -25,7 +25,6 @@ bool ImuGpsLocalizer::ProcessImuData(const ImuDataPtr imu_data_ptr) {
 
   // Convert ENU state to lla.
   ConvertENUToLLA(init_lla_, state_.G_p_I, &(state_.lla));
-  LOG(INFO)<<state_.G_p_I;
   // *fused_state = state_;
   return true;
 }
@@ -45,7 +44,7 @@ bool ImuGpsLocalizer::ProcessGpsPositionData(
     LOG(INFO) << "[ProcessGpsPositionData]: System initialized!";
     return true;
   }
-
+  LOG(INFO)<<gps_data_ptr->lla;
   // Update.
   gps_processor_->UpdateStateByGpsPosition(init_lla_, gps_data_ptr, &state_);
 

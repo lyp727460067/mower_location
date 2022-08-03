@@ -92,6 +92,7 @@ void Run(const std::string& inputbag_name) {
         const nav_msgs::Odometry &odom = *msg.instantiate<nav_msgs::Odometry>();
       }
     }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     if (msg.isType<sensor_msgs::Imu>()) {
       const sensor_msgs::Imu& imu = *msg.instantiate<sensor_msgs::Imu>();
       pose_extraplotor->AddImuData(sensor::ImuData{
@@ -104,7 +105,7 @@ void Run(const std::string& inputbag_name) {
     if (msg.isType<sensor_msgs::NavSatFix>()) {
       const sensor_msgs::NavSatFix &gps =
           *msg.instantiate<sensor_msgs::NavSatFix>();
-      if (gps.status.status == 2) {
+      // if (gps.status.status == 2) {
         sensor::FixedFramePoseData fix_data{
             FromRos(gps.header.stamp),
             transform::Rigid3d::Translation(
@@ -112,14 +113,16 @@ void Run(const std::string& inputbag_name) {
             Eigen::Map<const Eigen::Matrix3d>(gps.position_covariance.data())};
         pose_extraplotor->AddFixedFramePoseData(fix_data);
         auto pose = pose_extraplotor->ExtrapolatePose(fix_data.time);
+        LOG(INFO)<<pose;
         PubFusionData(pose);
-      }
+      // }
     }
   };
 }
 int main(int argc,char** argv) {
    
   ros::init(argc, argv, "location_main");
+  LOG(INFO)<<"start fusion";
   ros::NodeHandle nh;
   std::string bag_file(argv[1]);
   path_publisher = nh.advertise<nav_msgs::Path>("pose_path", 1);
@@ -127,6 +130,6 @@ int main(int argc,char** argv) {
   pose_extraplotor = new PoseExtrapolatorEkf(PoseExtrapolatorEkfOption{{}});
   ros::Rate rate(100);
   Run(bag_file);
-  ros::spin();
+  ros::shutdown();
   return 0;
 }
