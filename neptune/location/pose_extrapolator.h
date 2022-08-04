@@ -28,7 +28,7 @@ class PoseExtrapolator : public PoseExtrapolatorInterface {
    void AddOdometryData(const sensor::OdometryData& odometry_data) override;
 
    void AddFixedFramePoseData(
-       const sensor::FixedFramePoseData& fixed_frame_pose_data) override;
+       const sensor::FixedFramePoseData& fixed_frame_pose_data) override {}
 
    transform::Rigid3d ExtrapolatePose(common::Time time) override;
 

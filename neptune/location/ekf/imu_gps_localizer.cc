@@ -4,14 +4,15 @@
 namespace neptune {
 namespace location {
 
-ImuGpsLocalizer::ImuGpsLocalizer(const EkfOption&option)
+ImuGpsLocalizer::ImuGpsLocalizer(const EkfOption& option)
     : initialized_(false) {
-
-  initializer_ = std::make_unique<Initializer>(option.imutogps_extristric);
+  initializer_ =
+      std::make_unique<Initializer>(option.imu_to_gps_extristric.translation());
   imu_processor_ = std::make_unique<ImuProcessor>(
       option.acc_noise, option.gyro_noise, option.acc_bias_noise,
       option.gyro_bias_noise, Eigen::Vector3d(0., 0., -9.81007));
-  gps_processor_ = std::make_unique<GpsProcessor>(option.imutogps_extristric);
+  gps_processor_ = std::make_unique<GpsProcessor>(
+      option.imu_to_gps_extristric.translation());
 }
 
 bool ImuGpsLocalizer::ProcessImuData(const ImuDataPtr imu_data_ptr) {

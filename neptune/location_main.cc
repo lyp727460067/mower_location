@@ -27,13 +27,50 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Path.h>
 #include <sensor_msgs/Imu.h>
-
-std::string odom_topic;
+#include "location/local_pose_fusion.h"
+#include "neptune_options.h"
+std::string odom_topic ;
 std::string fix_topic;
 std::string imu_topic;
 using namespace neptune;
 using namespace location;
-PoseExtrapolatorInterface* pose_extraplotor;
+// PoseExtrapolatorInterface* pose_extraplotor;
+NeptuneOptions options;
+constexpr double DegToRad(double deg) { return M_PI * deg / 180.; }
+Eigen::Vector3d LatLongAltToEcef(const double latitude, const double longitude,
+                                 const double altitude) {
+  // https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_geodetic_to_ECEF_coordinates
+  constexpr double a = 6378137.;  // semi-major axis, equator to center.
+  constexpr double f = 1. / 298.257223563;
+  constexpr double b = a * (1. - f);  // semi-minor axis, pole to center.
+  constexpr double a_squared = a * a;
+  constexpr double b_squared = b * b;
+  constexpr double e_squared = (a_squared - b_squared) / a_squared;
+  const double sin_phi = std::sin(DegToRad(latitude));
+  const double cos_phi = std::cos(DegToRad(latitude));
+  const double sin_lambda = std::sin(DegToRad(longitude));
+  const double cos_lambda = std::cos(DegToRad(longitude));
+  const double N = a / std::sqrt(1 - e_squared * sin_phi * sin_phi);
+  const double x = (N + altitude) * cos_phi * cos_lambda;
+  const double y = (N + altitude) * cos_phi * sin_lambda;
+  const double z = (b_squared / a_squared * N + altitude) * sin_phi;
+
+  return Eigen::Vector3d(x, y, z);
+}
+
+std::unique_ptr<Eigen::Affine3d> ecef_to_local_frame = nullptr;
+Eigen::Affine3d ComputeLocalFrameFromLatLong(const double latitude,
+                                             const double longitude) {
+  const Eigen::Vector3d translation = LatLongAltToEcef(latitude, longitude, 0.);
+  const Eigen::Quaterniond rotation =
+      Eigen::AngleAxisd(DegToRad(latitude - 90.), Eigen::Vector3d::UnitY()) *
+      Eigen::AngleAxisd(DegToRad(-longitude), Eigen::Vector3d::UnitZ());
+
+  Eigen::Translation3d translatioin{rotation * -translation};
+  return translatioin * rotation;
+}
+
+LocalPoseFusion* pose_extraplotor;
 constexpr int64 kUtsEpochOffsetFromUnixEpochInSeconds =
     (719162ll * 24ll * 60ll * 60ll);
 common::Time FromRos(const ::ros::Time& time) {
@@ -88,29 +125,53 @@ void Run(const std::string& inputbag_name) {
        view_iterator++) {
     rosbag::MessageInstance msg = *view_iterator;
     if (msg.isType<nav_msgs::Odometry>()) {
-      if (msg.getTopic() == odom_topic) {
-        const nav_msgs::Odometry &odom = *msg.instantiate<nav_msgs::Odometry>();
-      }
+      // if (msg.getTopic() == odom_topic) {
+        const nav_msgs::Odometry& odom = *msg.instantiate<nav_msgs::Odometry>();
+        const Eigen::Vector3d translation{odom.pose.pose.position.x,
+                                          odom.pose.pose.position.y,
+                                          odom.pose.pose.position.z};
+        // LOG(INFO)<<translation;
+        const Eigen::Quaterniond rotation{
+            odom.pose.pose.orientation.w, odom.pose.pose.orientation.x,
+            odom.pose.pose.orientation.y, odom.pose.pose.orientation.x};
+        pose_extraplotor->AddOdometryData(
+            {FromRos(odom.header.stamp),
+             transform::Rigid3d(translation, rotation)});
+      // }
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
     if (msg.isType<sensor_msgs::Imu>()) {
       const sensor_msgs::Imu& imu = *msg.instantiate<sensor_msgs::Imu>();
       pose_extraplotor->AddImuData(sensor::ImuData{
           FromRos(imu.header.stamp),
           Eigen::Vector3d{imu.linear_acceleration.x,imu.linear_acceleration.y,
-                          imu.linear_acceleration.z},
+                          imu.linear_acceleration.z}-  options.rigid_param.imu_instrinsci.ba,
           Eigen::Vector3d{imu.angular_velocity.x, imu.angular_velocity.y,
-                          imu.angular_velocity.z}});
+                          imu.angular_velocity.z}  - options.rigid_param.imu_instrinsci.bg});
     }
     if (msg.isType<sensor_msgs::NavSatFix>()) {
       const sensor_msgs::NavSatFix &gps =
           *msg.instantiate<sensor_msgs::NavSatFix>();
       // if (gps.status.status == 2) {
+        // sensor::FixedFramePoseData fix_data{
+        //     FromRos(gps.header.stamp),
+        //     transform::Rigid3d::Translation(
+        //         {gps.latitude, gps.longitude, gps.altitude}),
+        //     Eigen::Map<const Eigen::Matrix3d>(gps.position_covariance.data())};
+        //  pose_extraplotor->AddFixedFramePoseData(fix_data);
+
+        if (ecef_to_local_frame == nullptr) {
+          ecef_to_local_frame = std::make_unique<Eigen::Affine3d>(
+              ComputeLocalFrameFromLatLong(gps.latitude, gps.longitude));
+        }
+        Eigen::Vector3d lat_pose =
+            *ecef_to_local_frame *
+            LatLongAltToEcef(gps.latitude, gps.longitude, gps.altitude);
         sensor::FixedFramePoseData fix_data{
             FromRos(gps.header.stamp),
-            transform::Rigid3d::Translation(
-                {gps.latitude, gps.longitude, gps.altitude}),
+            transform::Rigid3d::Translation(lat_pose),
             Eigen::Map<const Eigen::Matrix3d>(gps.position_covariance.data())};
+
         pose_extraplotor->AddFixedFramePoseData(fix_data);
         auto pose = pose_extraplotor->ExtrapolatePose(fix_data.time);
         LOG(INFO)<<pose;
@@ -127,7 +188,11 @@ int main(int argc,char** argv) {
   std::string bag_file(argv[1]);
   path_publisher = nh.advertise<nav_msgs::Path>("pose_path", 1);
   tf_broadcaster = new tf::TransformBroadcaster();
-  pose_extraplotor = new PoseExtrapolatorEkf(PoseExtrapolatorEkfOption{{}});
+   options = neptune::LodeOptions(
+      "/home/lyp/project/mower/src/mower_location/neptune/configuration_files",
+      "config.lua");
+  // pose_extraplotor = new PoseExtrapolatorEkf(PoseExtrapolatorEkfOption{{}});
+  pose_extraplotor = new LocalPoseFusion(LocalPoseFusionOption{{}});
   ros::Rate rate(100);
   Run(bag_file);
   ros::shutdown();
