@@ -8,6 +8,7 @@
 #include "imu_processor.h"
 #include "initializer.h"
 #include "glog/logging.h"
+#include "transform/rigid_transform.h"
 namespace neptune {
 namespace location {
 struct EkfOption {
@@ -15,7 +16,8 @@ struct EkfOption {
   double gyro_noise = 1e-4;
   double acc_bias_noise = 1e-4;
   double gyro_bias_noise = 1e-8;
-  Eigen::Vector3d imutogps_extristric;
+  transform::Rigid3d imu_to_gps_extristric;
+  transform::Rigid3d imu_to_odom_extristric;
 };
 
 class ImuGpsLocalizer {
