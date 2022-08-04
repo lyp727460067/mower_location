@@ -20,6 +20,7 @@ set(CMAKE_MODULE_PATH  ${PROJECT_SOURCE_DIR}/../Cmake/)
 find_package(Eigen3 REQUIRED)
 find_package(Glog REQUIRED)
 find_package(GTest  REQUIRED)
+find_package(Lua  REQUIRED)
 
 
 
@@ -33,7 +34,8 @@ list(REMOVE_ITEM ALL_EXECUTABLES ${ALL_LIBRARY_SRCS})
 add_subdirectory(GeographicLib)
 
 add_library(${PROJECT_NAME} STATIC ${ALL_LIBRARY_HDRS} ${ALL_LIBRARY_SRCS})
-
+target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
+  "${LUA_INCLUDE_DIR}")
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
   "${EIGEN3_INCLUDE_DIR}")
 target_link_libraries(${PROJECT_NAME} PUBLIC ${EIGEN3_LIBRARIES})

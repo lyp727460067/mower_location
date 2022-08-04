@@ -70,7 +70,9 @@ void PoseExtrapolatorEkf::PredictImu(ImuGpsLocalizer* imu_gps_location,
 void PoseExtrapolatorEkf::PredictEkfWithImu(ImuGpsLocalizer* imu_gps_location,
                                             const common::Time& time) {
   auto it = imu_data_.begin();
+  
   while (it != imu_data_.end() && it->time < time) {
+    
     PredictImu(imu_gps_location, *it);
     ++it;
   }
@@ -89,7 +91,6 @@ void PoseExtrapolatorEkf::AddFixedFramePoseData(
     AddPose(fix_data.time, transform::Rigid3d::Identity());
     return;
   }
-  LOG(INFO)<<"updata";
   ekf_imu_gps_fustion_extrapolte_ =
       std::make_unique<ImuGpsLocalizer>(*ekf_imu_gps_fustion_);
   AddPose(fix_data.time,
