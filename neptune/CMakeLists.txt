@@ -47,6 +47,9 @@ include_directories(
   ${PROJECT_SOURCE_DIR}
   ${catkin_INCLUDE_DIRS}
 )
+target_link_libraries(${PROJECT_NAME} PUBLIC ${LUA_LIBRARIES})
+
+
 target_link_libraries(${PROJECT_NAME}_main
    ${catkin_LIBRARIES}
    ${PROJECT_NAME}
@@ -56,6 +59,7 @@ target_link_libraries(${PROJECT_NAME}_main
    ${GTEST_LIBRARIES}
     ${CERES_LIBRARIES}
 		${OpenCV_LIBS}
+
    -pthread
  )
 ## Declare a C++ library

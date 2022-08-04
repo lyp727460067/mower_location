@@ -92,7 +92,9 @@ void LocalPoseFusion::AddImuData(const sensor::ImuData& imu_data) {
 }
 
 transform::Rigid3d LocalPoseFusion::ExtrapolatePose(common::Time time) {
-  return  ekf_states_;
+  return transform::Rigid3d::Rotation(
+      extrapolator_->EstimateGravityOrientation(time));
+  // return  ekf_states_;
   // return extrapolator_->ExtrapolatePose(time);
 }
 void LocalPoseFusion::AddOdometryData(

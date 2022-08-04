@@ -28,13 +28,14 @@
 #include <nav_msgs/Path.h>
 #include <sensor_msgs/Imu.h>
 #include "location/local_pose_fusion.h"
+#include "neptune_options.h"
 std::string odom_topic ;
 std::string fix_topic;
 std::string imu_topic;
 using namespace neptune;
 using namespace location;
 // PoseExtrapolatorInterface* pose_extraplotor;
-
+NeptuneOptions options;
 constexpr double DegToRad(double deg) { return M_PI * deg / 180.; }
 Eigen::Vector3d LatLongAltToEcef(const double latitude, const double longitude,
                                  const double altitude) {
@@ -144,9 +145,9 @@ void Run(const std::string& inputbag_name) {
       pose_extraplotor->AddImuData(sensor::ImuData{
           FromRos(imu.header.stamp),
           Eigen::Vector3d{imu.linear_acceleration.x,imu.linear_acceleration.y,
-                          imu.linear_acceleration.z},
+                          imu.linear_acceleration.z}-  options.rigid_param.imu_instrinsci.ba,
           Eigen::Vector3d{imu.angular_velocity.x, imu.angular_velocity.y,
-                          imu.angular_velocity.z}});
+                          imu.angular_velocity.z}  - options.rigid_param.imu_instrinsci.bg});
     }
     if (msg.isType<sensor_msgs::NavSatFix>()) {
       const sensor_msgs::NavSatFix &gps =
@@ -187,6 +188,9 @@ int main(int argc,char** argv) {
   std::string bag_file(argv[1]);
   path_publisher = nh.advertise<nav_msgs::Path>("pose_path", 1);
   tf_broadcaster = new tf::TransformBroadcaster();
+   options = neptune::LodeOptions(
+      "/home/lyp/project/mower/src/mower_location/neptune/configuration_files",
+      "config.lua");
   // pose_extraplotor = new PoseExtrapolatorEkf(PoseExtrapolatorEkfOption{{}});
   pose_extraplotor = new LocalPoseFusion(LocalPoseFusionOption{{}});
   ros::Rate rate(100);
