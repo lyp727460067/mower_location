@@ -45,6 +45,10 @@ NeptuneOptions CreateNodeOptions(
 
   auto sensor_extrinsic_options =
       lua_parameter_dictionary->GetDictionary("sensor_extrinsic");
+  auto  fusion_optoin =
+      lua_parameter_dictionary->GetDictionary("fusion_option");
+  options.fustion_options.location_use_type =
+      fusion_optoin->GetBool("location_use_type");
 
   auto imu_to_gps = sensor_extrinsic_options->GetDictionary("imu_to_gps");
   auto imu_to_odom = sensor_extrinsic_options->GetDictionary("imu_to_odom");

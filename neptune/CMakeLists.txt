@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(neptune)
-
+if($(NOT_BUILD_WITH_ROS))
+else()
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
@@ -9,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   tf
 )
+endif()
 cmake_minimum_required(VERSION 3.2)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 set(CMAKE_CXX_STANDARD 17)
@@ -38,30 +40,30 @@ target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
   "${LUA_INCLUDE_DIR}")
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
   "${EIGEN3_INCLUDE_DIR}")
+include_directories(
+  ${PROJECT_SOURCE_DIR}
+)
+
 target_link_libraries(${PROJECT_NAME} PUBLIC ${EIGEN3_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} PUBLIC ${GLOG_LIBRARY})
 target_link_libraries(${PROJECT_NAME} PUBLIC gflags)
 
-add_executable(${PROJECT_NAME}_main  ${EXECUTABLES})
-include_directories(
-  ${PROJECT_SOURCE_DIR}
-  ${catkin_INCLUDE_DIRS}
-)
 target_link_libraries(${PROJECT_NAME} PUBLIC ${LUA_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} PUBLIC ${CERES_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}  PUBLIC -pthread)
+target_link_libraries(${PROJECT_NAME} PUBLIC  libGeographiccc)
 
-
+if($(NOT_BUILD_WITH_ROS))
+else()
+target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
+"${catkin_INCLUDE_DIRS}"
+)
+add_executable(${PROJECT_NAME}_main  ${EXECUTABLES})
 target_link_libraries(${PROJECT_NAME}_main
    ${catkin_LIBRARIES}
    ${PROJECT_NAME}
-   libGeographiccc
-   ${EIGEN3_LIBS}
-   ${GLOG_LIBRARIES}
-   ${GTEST_LIBRARIES}
-    ${CERES_LIBRARIES}
-		${OpenCV_LIBS}
-
-   -pthread
- )
+)
+endif()
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/neptune.cpp

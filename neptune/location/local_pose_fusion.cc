@@ -19,16 +19,16 @@ inline Eigen::Matrix3d SkewSymmetric(const Eigen::Vector3d& w) {
 Eigen::Matrix<double, 6, 6> Fx(const Eigen::Quaterniond& q,
                                const transform::Rigid3d& delta_pose) {
   Eigen::Matrix<double, 6, 6> result = Eigen::Matrix<double, 6, 6>::Identity();
-  result.block<3, 3>(3, 0) =
+  result.block<3, 3>(0, 3) =
       -q.toRotationMatrix() * SkewSymmetric(delta_pose.translation());
   result.block<3, 3>(3, 3) = delta_pose.rotation().toRotationMatrix();
-  LOG(INFO)<<result;
+  LOG(INFO) << result;
   return result;
 }
 
 Eigen::Matrix<double, 3, 6> Hx() {
   Eigen::Matrix<double, 3, 6> result = Eigen::Matrix<double, 3, 6>::Zero();
-  result.block<3,3>(0, 0) = Eigen::Matrix3d::Identity();
+  result.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
   return result;
 }
 
@@ -44,6 +44,7 @@ transform::Rigid3d LocalPoseFusion::UpdataPose(
     const sensor::FixedFramePoseData& fix_data) {
   const Eigen::Matrix3d gps_conv = Eigen::Matrix3d::Identity() * 0.1;
   const auto delta_pose = last_extrapolator_pose_.inverse() * pose_expect;
+  LOG(INFO) << delta_pose;
   auto& P = conv_;
   auto const& F = Fx(pose_expect.rotation(), delta_pose);
   P = F * P * F.transpose() + PoseExtrapolatorVari();
@@ -59,7 +60,7 @@ transform::Rigid3d LocalPoseFusion::UpdataPose(
   const Eigen::VectorXd delta_x = K * residual;
   const Eigen::MatrixXd I_KH = Eigen::Matrix<double, 6, 6>::Identity() - K * H;
   conv_ = I_KH * P * I_KH.transpose() + K * gps_conv * K.transpose();
-  const Eigen::Vector3d detata_rotation_x =  delta_x.head(3);
+  const Eigen::Vector3d detata_rotation_x = delta_x.head(3);
   const auto& delta_rotation =
       transform::AngleAxisVectorToRotationQuaternion(detata_rotation_x);
   ekf_states_ = transform::Rigid3d(
@@ -73,16 +74,18 @@ std::unique_ptr<transform::Rigid3d> LocalPoseFusion::AddFixedFramePoseData(
   if (extrapolator_ == nullptr) {
     return nullptr;
   }
-  LOG(INFO)<<"add fix data";
+  LOG(INFO) << "add fix data";
   transform::Rigid3d pose_expect =
       extrapolator_->ExtrapolatePose(fix_data.time);
-  LOG(INFO)<<pose_expect;
+  LOG(INFO) << pose_expect;
   // ekf_states_ =  pose_expect;
   transform::Rigid3d pose_update = UpdataPose(pose_expect, fix_data);
   extrapolator_->AddPose(fix_data.time, pose_expect);
   return std::make_unique<transform::Rigid3d>();
 }
 void LocalPoseFusion::AddImuData(const sensor::ImuData& imu_data) {
+  // LOG(INFO)<<imu_data.angular_velocity.transpose();
+  // LOG(INFO)<<imu_data.linear_acceleration.transpose();
   if (extrapolator_ != nullptr) {
     extrapolator_->AddImuData(imu_data);
     return;
@@ -92,9 +95,9 @@ void LocalPoseFusion::AddImuData(const sensor::ImuData& imu_data) {
 }
 
 transform::Rigid3d LocalPoseFusion::ExtrapolatePose(common::Time time) {
-  return transform::Rigid3d::Rotation(
-      extrapolator_->EstimateGravityOrientation(time));
-  // return  ekf_states_;
+  // return transform::Rigid3d::Rotation(
+  // extrapolator_->EstimateGravityOrientation(time));
+  return ekf_states_;
   // return extrapolator_->ExtrapolatePose(time);
 }
 void LocalPoseFusion::AddOdometryData(
@@ -106,5 +109,59 @@ void LocalPoseFusion::AddOdometryData(
   }
   extrapolator_->AddOdometryData(odometry_data);
 }
+
+LocalPoseFusionWithEskf::LocalPoseFusionWithEskf(
+    const PoseExtrapolatorEkfOption& option) {
+  extrapolator_ = std::make_unique<PoseExtrapolatorEkf>(option_);
+}
+
+void LocalPoseFusionWithEskf::AddOdometryData(
+    const sensor::OdometryData& odometry_data) {
+  extrapolator_->AddOdometryData(odometry_data);
+}
+void LocalPoseFusionWithEskf::AddImuData(const sensor::ImuData& imu_data) {
+  extrapolator_->AddImuData(imu_data);
+}
+transform::Rigid3d LocalPoseFusionWithEskf::ExtrapolatePose(
+    const common::Time time) {
+  return extrapolator_->ExtrapolatePose(time);
+}
+
+std::unique_ptr<transform::Rigid3d>
+LocalPoseFusionWithEskf::AddFixedFramePoseData(
+    const sensor::FixedFramePoseData& fix_data) {
+  extrapolator_->AddFixedFramePoseData(fix_data);
+  return std::make_unique<transform::Rigid3d>(
+      extrapolator_->ExtrapolatePose(fix_data.time));
+}
+
+void PureOdomImuFusion::AddOdometryData(
+    const sensor::OdometryData& odometry_data) {
+  if (extrapolator_ != nullptr) {
+    extrapolator_->AddOdometryData(odometry_data);
+  }
+}
+void PureOdomImuFusion::AddImuData(const sensor::ImuData& imu_data) {
+  if (extrapolator_ != nullptr) {
+    extrapolator_->AddImuData(imu_data);
+    transform::Rigid3d pose_expect =
+        extrapolator_->ExtrapolatePose(imu_data.time);
+    extrapolator_->AddPose(imu_data.time, pose_expect);
+    return;
+  }
+  extrapolator_ =
+      location::PoseExtrapolatorInterface::CreateWithImuData({imu_data});
+}
+transform::Rigid3d PureOdomImuFusion::ExtrapolatePose(const common::Time time) {
+  if (extrapolator_ != nullptr) {
+    return extrapolator_->ExtrapolatePose(time);
+  }
+}
+
+std::unique_ptr<transform::Rigid3d> PureOdomImuFusion::AddFixedFramePoseData(
+    const sensor::FixedFramePoseData& fix_data) {
+  return nullptr;
+}
+
 }  // namespace location
 }  // namespace neptune

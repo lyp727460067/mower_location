@@ -8,12 +8,9 @@
 #include "location/imu_tracker.h"
 #include "common/time.h"
 #include "location/pose_extrapolator_interface.h"
-#include "location/ekf/imu_gps_localizer.h"
 namespace neptune {
 namespace location {
-struct PoseExtrapolatorEkfOption {
-  EkfOption ekf_option;
-};
+
 
 class PoseExtrapolatorEkf : public PoseExtrapolatorInterface {
   public:

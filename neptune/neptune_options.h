@@ -22,7 +22,9 @@ struct NeptuneOptions {
       transform::Rigid3d bady_to_imu;
     } sensor_extrinsic;
   } rigid_param;
-  struct FusionOptoin {};
+  struct FusionOptoin {
+    bool location_use_type;
+  }fustion_options;
 };
 NeptuneOptions LodeOptions(const std::string& configuration_directory,
                            const std::string& configuration_basename);

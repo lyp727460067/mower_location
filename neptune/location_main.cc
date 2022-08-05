@@ -27,8 +27,8 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Path.h>
 #include <sensor_msgs/Imu.h>
-#include "location/local_pose_fusion.h"
 #include "neptune_options.h"
+#include "location/fusion_interface.h"
 std::string odom_topic ;
 std::string fix_topic;
 std::string imu_topic;
@@ -70,7 +70,7 @@ Eigen::Affine3d ComputeLocalFrameFromLatLong(const double latitude,
   return translatioin * rotation;
 }
 
-LocalPoseFusion* pose_extraplotor;
+std::unique_ptr< FustionInterface> pose_extraplotor;
 constexpr int64 kUtsEpochOffsetFromUnixEpochInSeconds =
     (719162ll * 24ll * 60ll * 60ll);
 common::Time FromRos(const ::ros::Time& time) {
@@ -130,7 +130,7 @@ void Run(const std::string& inputbag_name) {
         const Eigen::Vector3d translation{odom.pose.pose.position.x,
                                           odom.pose.pose.position.y,
                                           odom.pose.pose.position.z};
-        // LOG(INFO)<<translation;
+        LOG(INFO)<<translation;
         const Eigen::Quaterniond rotation{
             odom.pose.pose.orientation.w, odom.pose.pose.orientation.x,
             odom.pose.pose.orientation.y, odom.pose.pose.orientation.x};
@@ -139,15 +139,16 @@ void Run(const std::string& inputbag_name) {
              transform::Rigid3d(translation, rotation)});
       // }
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     if (msg.isType<sensor_msgs::Imu>()) {
       const sensor_msgs::Imu& imu = *msg.instantiate<sensor_msgs::Imu>();
+      LOG(INFO)<<"add imu";
       pose_extraplotor->AddImuData(sensor::ImuData{
           FromRos(imu.header.stamp),
           Eigen::Vector3d{imu.linear_acceleration.x,imu.linear_acceleration.y,
-                          imu.linear_acceleration.z}-  options.rigid_param.imu_instrinsci.ba,
+                          imu.linear_acceleration.z}+  options.rigid_param.imu_instrinsci.ba,
           Eigen::Vector3d{imu.angular_velocity.x, imu.angular_velocity.y,
-                          imu.angular_velocity.z}  - options.rigid_param.imu_instrinsci.bg});
+                          imu.angular_velocity.z}  + options.rigid_param.imu_instrinsci.bg});
     }
     if (msg.isType<sensor_msgs::NavSatFix>()) {
       const sensor_msgs::NavSatFix &gps =
@@ -167,12 +168,15 @@ void Run(const std::string& inputbag_name) {
         Eigen::Vector3d lat_pose =
             *ecef_to_local_frame *
             LatLongAltToEcef(gps.latitude, gps.longitude, gps.altitude);
+        lat_pose.z()  = 0;
         sensor::FixedFramePoseData fix_data{
             FromRos(gps.header.stamp),
             transform::Rigid3d::Translation(lat_pose),
             Eigen::Map<const Eigen::Matrix3d>(gps.position_covariance.data())};
-
+        LOG(INFO)<<lat_pose;
         pose_extraplotor->AddFixedFramePoseData(fix_data);
+
+        LOG(INFO)<<lat_pose;
         auto pose = pose_extraplotor->ExtrapolatePose(fix_data.time);
         LOG(INFO)<<pose;
         PubFusionData(pose);
@@ -183,7 +187,6 @@ void Run(const std::string& inputbag_name) {
 int main(int argc,char** argv) {
    
   ros::init(argc, argv, "location_main");
-  LOG(INFO)<<"start fusion";
   ros::NodeHandle nh;
   std::string bag_file(argv[1]);
   path_publisher = nh.advertise<nav_msgs::Path>("pose_path", 1);
@@ -192,9 +195,11 @@ int main(int argc,char** argv) {
       "/home/lyp/project/mower/src/mower_location/neptune/configuration_files",
       "config.lua");
   // pose_extraplotor = new PoseExtrapolatorEkf(PoseExtrapolatorEkfOption{{}});
-  pose_extraplotor = new LocalPoseFusion(LocalPoseFusionOption{{}});
-  ros::Rate rate(100);
-  Run(bag_file);
-  ros::shutdown();
-  return 0;
+   pose_extraplotor =  FustionInterface::CreatFusion(FusionOption{0});
+
+  LOG(INFO)<<"start fusion";
+   ros::Rate rate(100);
+   Run(bag_file);
+   ros::shutdown();
+   return 0;
 }

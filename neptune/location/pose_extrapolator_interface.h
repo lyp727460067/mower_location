@@ -12,9 +12,14 @@
 #include "sensor/odometry_data.h"
 #include "sensor/fixed_frame_pose_data.h"
 
+#include "location/ekf/imu_gps_localizer.h"
 
 namespace neptune {
 namespace location {
+struct PoseExtrapolatorEkfOption {
+  EkfOption ekf_option;
+};
+
 class PoseExtrapolatorInterface {
  public:
   struct ExtrapolationResult {

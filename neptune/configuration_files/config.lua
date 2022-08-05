@@ -64,5 +64,12 @@ neptune = {
      yaw = 0.1,
    }, 
   },
+  fusion_option={
+    location_use_type =0,
+  }
+
+
+
+
 }
 return neptune
