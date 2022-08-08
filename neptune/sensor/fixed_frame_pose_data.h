@@ -5,8 +5,8 @@
 
 #include <memory>
 
-#include "common/time.h"
-#include "transform/rigid_transform.h"
+#include "neptune/common/time.h"
+#include "neptune/transform/rigid_transform.h"
 
 namespace neptune {
 namespace sensor {

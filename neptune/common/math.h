@@ -6,7 +6,7 @@
 
 #include "Eigen/Core"
 #include "ceres/ceres.h"
-#include "common/port.h"
+#include "neptune/common/port.h"
 namespace neptune {
 namespace common {
 

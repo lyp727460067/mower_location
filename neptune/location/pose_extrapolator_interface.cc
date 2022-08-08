@@ -1,6 +1,6 @@
 
 #include "pose_extrapolator_interface.h"
-#include "location/pose_extrapolator.h"
+#include "neptune/location/pose_extrapolator.h"
 
 namespace neptune {
 namespace location {

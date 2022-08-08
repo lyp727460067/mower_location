@@ -1,13 +1,15 @@
 #ifndef _FUSION_INTERFACE_H
 #define _FUSION_INTERFACE_H
 #include <memory>
-#include  "location/pose_extrapolator_interface.h"
-#include "transform/transform.h"
+
+#include "neptune/location/pose_extrapolator_interface.h"
+#include "neptune/transform/transform.h"
 
 namespace neptune {
 namespace location {
 
 struct LocalPoseFusionOption {
+  int fustion_type;
   double fix_weitht;
   double extraplaton_weitht;
 };

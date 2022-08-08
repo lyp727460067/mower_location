@@ -1,5 +1,5 @@
-#include "location/fusion_interface.h"
-#include "local_pose_fusion.h"
+#include "neptune/location/fusion_interface.h"
+#include "neptune/location/local_pose_fusion.h"
 
 namespace neptune {
 namespace location {

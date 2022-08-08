@@ -2,10 +2,10 @@
 #define   _LOCAL_POSE_FUSION_H
 #include <memory>
 
-#include "location/fusion_interface.h"
-#include "location/pose_extrapolator_interface.h"
-#include "transform/transform.h"
-#include "ekf_pose_extrapolator.h"
+#include "neptune/location/fusion_interface.h"
+#include "neptune/location/pose_extrapolator_interface.h"
+#include "neptune/transform/transform.h"
+#include "neptune/location/ekf_pose_extrapolator.h"
 namespace neptune {
 namespace location {
 
@@ -19,13 +19,16 @@ class LocalPoseFusion : public FustionInterface {
   transform::Rigid3d ExtrapolatePose(common::Time time);
 
  private:
+
   const bool pure_local_pose = false;
   transform::Rigid3d UpdataPose(const transform::Rigid3d pose_expect,
                                 const sensor::FixedFramePoseData& fix_data);
+  transform::Rigid3d CeresUpdata(const transform::Rigid3d pose_expect,
+                                 const sensor::FixedFramePoseData& fix_data);
   LocalPoseFusionOption option_;
   std::unique_ptr<PoseExtrapolatorInterface> extrapolator_;
-  Eigen::Matrix<double, 6, 6> conv_ =
-      Eigen::Matrix<double, 6, 6>::Identity() * 100;
+  Eigen::Matrix<double, 9, 9> conv_ =
+      Eigen::Matrix<double, 9, 9>::Identity() * 100;
   transform::Rigid3d ekf_states_;
   transform::Rigid3d last_extrapolator_pose_;
 };

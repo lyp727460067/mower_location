@@ -2,8 +2,8 @@
 #define NEPTUNE_LOCATION_IMU_TRACKER_H_
 
 #include "Eigen/Geometry"
-#include "common/time.h"
-#include "transform/transform.h"
+#include "neptune/common/time.h"
+#include "neptune/transform/transform.h"
 namespace neptune {
 namespace location {
 class PoseExtrapolator;

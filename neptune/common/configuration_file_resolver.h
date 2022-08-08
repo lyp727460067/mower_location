@@ -19,8 +19,8 @@
 
 #include <vector>
 
-#include "common/lua_parameter_dictionary.h"
-#include "common/port.h"
+#include "neptune/common/lua_parameter_dictionary.h"
+#include "neptune/common/port.h"
 
 namespace neptune {
 namespace common {

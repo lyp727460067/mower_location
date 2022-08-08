@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "common/configuration_file_resolver.h"
+#include "neptune/common/configuration_file_resolver.h"
 
 #include <fstream>
 #include <iostream>

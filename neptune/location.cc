@@ -1,4 +1,5 @@
-#include "location.h"
+#include "neptune/location.h"
+
 namespace  neptune{
 namespace {
 
@@ -9,6 +10,7 @@ NeptuneLocation::NeptuneLocation(const std::string& configuration_directory,
                                  const std::string& configuration_basename) {
   options_ =
       neptune::LodeOptions(configuration_directory, configuration_basename);
+  LOG(INFO)<<options_.fustion_options.location_use_type;
   location_ = location::FustionInterface::CreatFusion(location::FusionOption{
       options_.fustion_options.location_use_type,
       location::LocalPoseFusionOption{0, 0},

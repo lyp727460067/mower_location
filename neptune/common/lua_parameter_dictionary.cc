@@ -27,7 +27,7 @@
 // Some of the methods below documentation the current stack with the following
 // notation: S: <bottom> ... <top>
 
-#include "common/lua_parameter_dictionary.h"
+#include "neptune/common/lua_parameter_dictionary.h"
 
 #include <algorithm>
 #include <cmath>

@@ -6,13 +6,13 @@
 #include <memory>
 #include <tuple>
 #include <vector>
-#include "transform/transform.h"
-#include "common/time.h"
-#include "sensor/imu_data.h"
-#include "sensor/odometry_data.h"
-#include "sensor/fixed_frame_pose_data.h"
+#include "neptune/transform/transform.h"
+#include "neptune/common/time.h"
+#include "neptune/sensor/imu_data.h"
+#include "neptune/sensor/odometry_data.h"
+#include "neptune/sensor/fixed_frame_pose_data.h"
 
-#include "location/ekf/imu_gps_localizer.h"
+#include "neptune/location/ekf/imu_gps_localizer.h"
 
 namespace neptune {
 namespace location {

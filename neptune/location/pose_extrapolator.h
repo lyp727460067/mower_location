@@ -5,9 +5,9 @@
 
 #include <deque>
 #include <memory>
-#include "location/imu_tracker.h"
-#include "common/time.h"
-#include "location/pose_extrapolator_interface.h"
+#include "neptune/location/imu_tracker.h"
+#include "neptune/common/time.h"
+#include "neptune/location/pose_extrapolator_interface.h"
 
 namespace neptune {
 namespace location {

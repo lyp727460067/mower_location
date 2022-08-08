@@ -1,7 +1,7 @@
 #ifndef _LOCATION_H
 #define  _LOCATION_H
-#include "location/fusion_interface.h"
-#include "neptune_options.h"
+#include "neptune/location/fusion_interface.h"
+#include "neptune/neptune_options.h"
 #include <string>
 namespace neptune {
 class NeptuneLocation {

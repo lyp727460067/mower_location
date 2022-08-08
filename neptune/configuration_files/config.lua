@@ -65,11 +65,13 @@ neptune = {
    }, 
   },
   fusion_option={
-    location_use_type =0,
+    location_use_type =2,
+    local_pose_option={
+        fustion_type=1,
+        fix_weitht=0.5,
+        extraplaton_weitht=1,
+    },
   }
-
-
-
 
 }
 return neptune

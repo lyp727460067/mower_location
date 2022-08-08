@@ -1,9 +1,9 @@
-#include "location/ekf_pose_extrapolator.h"
+#include "neptune/location/ekf_pose_extrapolator.h"
 
 #include <algorithm>
 
 #include "glog/logging.h"
-#include "transform/transform.h"
+#include "neptune/transform/transform.h"
 namespace neptune {
 namespace location {
 PoseExtrapolatorEkf::PoseExtrapolatorEkf(
@@ -70,9 +70,7 @@ void PoseExtrapolatorEkf::PredictImu(ImuGpsLocalizer* imu_gps_location,
 void PoseExtrapolatorEkf::PredictEkfWithImu(ImuGpsLocalizer* imu_gps_location,
                                             const common::Time& time) {
   auto it = imu_data_.begin();
-  
   while (it != imu_data_.end() && it->time < time) {
-    
     PredictImu(imu_gps_location, *it);
     ++it;
   }

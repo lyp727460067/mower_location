@@ -5,8 +5,8 @@
 
 #include "Eigen/Core"
 #include "Eigen/Geometry"
-#include "common/math.h"
-#include "transform/rigid_transform.h"
+#include "neptune/common/math.h"
+#include "neptune/transform/rigid_transform.h"
 namespace neptune {
 namespace transform {
 // Returns the non-negative rotation angle in radians of the 3D transformation

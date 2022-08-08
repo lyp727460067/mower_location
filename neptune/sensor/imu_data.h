@@ -2,7 +2,7 @@
 #define NEPTUNE_SENSOR_IMU_DATA_H_
 
 #include "Eigen/Core"
-#include "common/time.h"
+#include "neptune/common/time.h"
 
 namespace neptune {
 namespace sensor {

@@ -1,10 +1,10 @@
-#include "neptune_options.h"
+#include "neptune/neptune_options.h"
 
 #include <memory>
 #include <string>
 
-#include "common/configuration_file_resolver.h"
-#include "common/lua_parameter_dictionary.h"
+#include "neptune/common/configuration_file_resolver.h"
+#include "neptune/common/lua_parameter_dictionary.h"
 namespace neptune {
 
 NeptuneOptions CreateNodeOptions(
@@ -48,8 +48,13 @@ NeptuneOptions CreateNodeOptions(
   auto  fusion_optoin =
       lua_parameter_dictionary->GetDictionary("fusion_option");
   options.fustion_options.location_use_type =
-      fusion_optoin->GetBool("location_use_type");
+      fusion_optoin->GetInt("location_use_type");
 
+  auto local_pose_option = fusion_optoin->GetDictionary("local_pose_option");
+  options.fustion_options.local_pose_option = {
+      local_pose_option->GetInt("fustion_type"),
+      local_pose_option->GetDouble("fix_weitht"),
+      local_pose_option->GetDouble("extraplaton_weitht")};
   auto imu_to_gps = sensor_extrinsic_options->GetDictionary("imu_to_gps");
   auto imu_to_odom = sensor_extrinsic_options->GetDictionary("imu_to_odom");
   auto bady_to_imu = sensor_extrinsic_options->GetDictionary("bady_to_imu");

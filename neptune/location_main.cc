@@ -27,8 +27,8 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Path.h>
 #include <sensor_msgs/Imu.h>
-#include "neptune_options.h"
-#include "location/fusion_interface.h"
+#include "neptune/neptune_options.h"
+#include "neptune/location/fusion_interface.h"
 std::string odom_topic ;
 std::string fix_topic;
 std::string imu_topic;
@@ -130,7 +130,7 @@ void Run(const std::string& inputbag_name) {
         const Eigen::Vector3d translation{odom.pose.pose.position.x,
                                           odom.pose.pose.position.y,
                                           odom.pose.pose.position.z};
-        LOG(INFO)<<translation;
+        // LOG(INFO)<<translation;
         const Eigen::Quaterniond rotation{
             odom.pose.pose.orientation.w, odom.pose.pose.orientation.x,
             odom.pose.pose.orientation.y, odom.pose.pose.orientation.x};
@@ -142,7 +142,6 @@ void Run(const std::string& inputbag_name) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
     if (msg.isType<sensor_msgs::Imu>()) {
       const sensor_msgs::Imu& imu = *msg.instantiate<sensor_msgs::Imu>();
-      LOG(INFO)<<"add imu";
       pose_extraplotor->AddImuData(sensor::ImuData{
           FromRos(imu.header.stamp),
           Eigen::Vector3d{imu.linear_acceleration.x,imu.linear_acceleration.y,
@@ -175,8 +174,6 @@ void Run(const std::string& inputbag_name) {
             Eigen::Map<const Eigen::Matrix3d>(gps.position_covariance.data())};
         LOG(INFO)<<lat_pose;
         pose_extraplotor->AddFixedFramePoseData(fix_data);
-
-        LOG(INFO)<<lat_pose;
         auto pose = pose_extraplotor->ExtrapolatePose(fix_data.time);
         LOG(INFO)<<pose;
         PubFusionData(pose);
@@ -195,9 +192,11 @@ int main(int argc,char** argv) {
       "/home/lyp/project/mower/src/mower_location/neptune/configuration_files",
       "config.lua");
   // pose_extraplotor = new PoseExtrapolatorEkf(PoseExtrapolatorEkfOption{{}});
-   pose_extraplotor =  FustionInterface::CreatFusion(FusionOption{0});
+   pose_extraplotor = FustionInterface::CreatFusion(
+       FusionOption{options.fustion_options.location_use_type,
+                    {options.fustion_options.local_pose_option}});
 
-  LOG(INFO)<<"start fusion";
+   LOG(INFO) << "start fusion";
    ros::Rate rate(100);
    Run(bag_file);
    ros::shutdown();

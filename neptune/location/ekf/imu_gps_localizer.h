@@ -8,7 +8,7 @@
 #include "imu_processor.h"
 #include "initializer.h"
 #include "glog/logging.h"
-#include "transform/rigid_transform.h"
+#include "neptune/transform/rigid_transform.h"
 namespace neptune {
 namespace location {
 struct EkfOption {

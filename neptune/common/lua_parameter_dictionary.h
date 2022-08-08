@@ -22,8 +22,8 @@
 #include <string>
 #include <vector>
 
-#include "common/lua.h"
-#include "common/port.h"
+#include "neptune/common/lua.h"
+#include "neptune/common/port.h"
 #include "glog/logging.h"
 
 namespace neptune {

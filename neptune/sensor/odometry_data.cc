@@ -1,6 +1,6 @@
-#include "sensor/odometry_data.h"
+#include "neptune/sensor/odometry_data.h"
 
-#include "transform/transform.h"
+#include "neptune/transform/transform.h"
 
 namespace neptune {
 namespace sensor {

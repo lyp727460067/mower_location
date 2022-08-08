@@ -3,9 +3,9 @@
 #include <cmath>
 #include <limits>
 
-#include "common/eigen_quaterniond_from_two_vectors.h"
-#include "common/math.h"
-#include "transform/transform.h"
+#include "neptune/common/eigen_quaterniond_from_two_vectors.h"
+#include "neptune/common/math.h"
+#include "neptune/transform/transform.h"
 #include "glog/logging.h"
 
 namespace neptune {

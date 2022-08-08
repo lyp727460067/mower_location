@@ -1,8 +1,8 @@
 #ifndef NEPTUTN_TRANSFORM_TIMESTAMPED_TRANSFORM_H_
 #define NEPTUTN_TRANSFORM_TIMESTAMPED_TRANSFORM_H_
 
-#include "common/time.h"
-#include "transform/rigid_transform.h"
+#include "neptune/common/time.h"
+#include "neptune/transform/rigid_transform.h"
 namespace neptune {
 namespace transform {
 

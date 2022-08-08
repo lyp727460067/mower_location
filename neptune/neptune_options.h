@@ -1,7 +1,8 @@
 #ifndef NEPUNE_OPTIONS_H
 #define NEPUNE_OPTIONS_H
-#include "transform/rigid_transform.h"
+#include "neptune/transform/rigid_transform.h"
 #include "Eigen/Core"
+#include "neptune/location/fusion_interface.h"
 namespace neptune {
 struct NeptuneOptions {
   struct RigidParm {
@@ -23,7 +24,8 @@ struct NeptuneOptions {
     } sensor_extrinsic;
   } rigid_param;
   struct FusionOptoin {
-    bool location_use_type;
+    int location_use_type;
+    location::LocalPoseFusionOption local_pose_option;
   }fustion_options;
 };
 NeptuneOptions LodeOptions(const std::string& configuration_directory,

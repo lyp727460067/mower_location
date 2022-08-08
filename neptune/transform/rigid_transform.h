@@ -7,8 +7,8 @@
 #include <strstream>
 #include "Eigen/Core"
 #include "Eigen/Geometry"
-#include "common/math.h"
-#include "common/port.h"
+#include "neptune/common/math.h"
+#include "neptune/common/port.h"
 
 namespace neptune {
 namespace transform {

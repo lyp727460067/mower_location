@@ -6,8 +6,8 @@
 #include <deque>
 #include <limits>
 
-#include "common/time.h"
-#include "transform/timestamped_transform.h"
+#include "neptune/common/time.h"
+#include "neptune/transform/timestamped_transform.h"
 
 namespace neptune {
 namespace transform {
