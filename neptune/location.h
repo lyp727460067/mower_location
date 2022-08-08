@@ -14,10 +14,17 @@ class NeptuneLocation {
   void AddImuData(const sensor::ImuData& imu_data) {
     location_->AddImuData(imu_data);
   }
-  void AddOdometryData(const sensor::OdometryData& odometry_data);
-  transform::Rigid3d ExtrapolatePose(common::Time time);
+  void AddOdometryData(const sensor::OdometryData& odometry_data) {
+    location_->AddOdometryData(odometry_data);
+  }
+  transform::Rigid3d ExtrapolatePose(common::Time time) {
+    return location_->ExtrapolatePose(time);
+  }
 
  private:
+  Eigen::Affine3d ComputeLocalFrameFromLatLong(const double latitude,
+                                               const double longitude);
+  std::unique_ptr<Eigen::Affine3d> ecef_to_local_frame = nullptr;
   std::unique_ptr<location::FustionInterface> location_;
   NeptuneOptions options_;
 };

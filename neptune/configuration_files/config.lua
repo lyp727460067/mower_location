@@ -65,7 +65,7 @@ neptune = {
    }, 
   },
   fusion_option={
-    location_use_type =2,
+    location_use_type =0,
     local_pose_option={
         fustion_type=1,
         fix_weitht=0.5,
