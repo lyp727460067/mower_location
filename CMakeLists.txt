@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(neptune)
-if($(NOT_BUILD_WITH_ROS))
-else()
+if(NOT ${NOT_BUILD_WITH_ROS})
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
@@ -32,7 +31,8 @@ find_package(Glog REQUIRED)
 file(GLOB_RECURSE ALL_LIBRARY_HDRS "*.h")
 file(GLOB_RECURSE ALL_LIBRARY_SRCS "*.cc")
 file(GLOB_RECURSE EXECUTABLES "*_main.cc")
-list(REMOVE_ITEM ALL_EXECUTABLES ${ALL_LIBRARY_SRCS})
+list(REMOVE_ITEM ALL_LIBRARY_SRCS ${EXECUTABLES})
+
 
 add_subdirectory(GeographicLib)
 
@@ -44,18 +44,23 @@ target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
 include_directories(
   ${PROJECT_SOURCE_DIR}
 )
-
+if(NOT $(NOT_BUILD_WITH_ROS))
 target_link_libraries(${PROJECT_NAME} PUBLIC ${EIGEN3_LIBRARIES})
+endif()
 target_link_libraries(${PROJECT_NAME} PUBLIC ${GLOG_LIBRARY})
 target_link_libraries(${PROJECT_NAME} PUBLIC gflags)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC ${LUA_LIBRARIES})
+
+if(NOT ${NOT_BUILD_WITH_ROS})
 target_link_libraries(${PROJECT_NAME} PUBLIC ${CERES_LIBRARIES})
+else()
+target_link_libraries(${PROJECT_NAME} PUBLIC -lceres)
+endif()
 target_link_libraries(${PROJECT_NAME}  PUBLIC -pthread)
 target_link_libraries(${PROJECT_NAME} PUBLIC  libGeographiccc)
 
-if($(NOT_BUILD_WITH_ROS))
-else()
+if(NOT ${NOT_BUILD_WITH_ROS})
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
 "${catkin_INCLUDE_DIRS}"
 )
