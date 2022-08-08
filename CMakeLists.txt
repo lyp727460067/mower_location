@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(neptune)
+set(NOT_BUILD_WITH_ROS ON)
 if(NOT ${NOT_BUILD_WITH_ROS})
 find_package(catkin REQUIRED COMPONENTS
   roscpp
