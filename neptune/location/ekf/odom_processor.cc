@@ -46,8 +46,7 @@ bool OdomVelocityProcessor::UpdateStateByOdomVelocity(
       Eigen::Matrix<double, 18, 18>::Identity() - K * H;
   state->cov = I_KH * P * I_KH.transpose() + K * V * K.transpose();
   // state->timestamp = odom_data_ptr->timestamp;
-  // LOG(INFO) << "after update with odom";
-  // LOG(INFO) << *state;
+  LOG_EVERY_N(INFO, 25) << "after update with odom \n" << *state;
   return true;
 }
 
@@ -55,6 +54,18 @@ void OdomVelocityProcessor::ComputeJacobianAndResidual(
     const OdomVelocityDataPtr odom_data, const State &state,
     Eigen::Matrix<double, 6, 18> *jacobian,
     Eigen::Matrix<double, 6, 1> *residual) {
+
+  Eigen::Vector3d res_v =
+      odom_data->v_b -
+      (I_R_odom_.transpose() * state.G_R_I.transpose() * state.G_v_I +
+       I_R_odom_.transpose() * state.gyro.cross(I_t_odom_));
+  Eigen::Vector3d res_w = odom_data->w_b - I_R_odom_.transpose() * state.gyro;
+
+  residual->block<3, 1>(0, 0) = res_v;
+  residual->block<3, 1>(3, 0) = res_w;
+
+  residual->setZero();
+
   jacobian->setZero();
   jacobian->block<3, 3>(0, 3) = I_R_odom_.transpose() * state.G_R_I.transpose();
   jacobian->block<3, 3>(0, 6) =
@@ -63,6 +74,7 @@ void OdomVelocityProcessor::ComputeJacobianAndResidual(
   jacobian->block<3, 3>(0, 15) =
       -I_R_odom_.transpose() * GetSkewMatrix(I_t_odom_);
   jacobian->block<3, 3>(3, 15) = I_R_odom_.transpose();
+  jacobian->setZero();
 }
 
 } // namespace location

@@ -13,35 +13,53 @@ NeptuneOptions CreateNodeOptions(
   // auto neptune_option = lua_parameter_dictionary->GetDictionary("neptune");
   auto imu_intrinsci_option =
       lua_parameter_dictionary->GetDictionary("imu_instrinsic");
-  options.rigid_param.imu_instrinsci = NeptuneOptions::RigidParm::ImuInstrinsic{
-      {imu_intrinsci_option->GetDouble("bax"),
-       imu_intrinsci_option->GetDouble("bay"),
-       imu_intrinsci_option->GetDouble("baz")},
-      {imu_intrinsci_option->GetDouble("nbax"),
-       imu_intrinsci_option->GetDouble("nbay"),
-       imu_intrinsci_option->GetDouble("nbaz")},
-      {imu_intrinsci_option->GetDouble("kax"),
-       imu_intrinsci_option->GetDouble("kay"),
-       imu_intrinsci_option->GetDouble("kaz")},
-      {imu_intrinsci_option->GetDouble("tax"),
-       imu_intrinsci_option->GetDouble("tay"),
-       imu_intrinsci_option->GetDouble("taz")},
-      {imu_intrinsci_option->GetDouble("bgx"),
-       imu_intrinsci_option->GetDouble("bgy"),
-       imu_intrinsci_option->GetDouble("bgz")},
-      {imu_intrinsci_option->GetDouble("nbgx"),
-       imu_intrinsci_option->GetDouble("nbgy"),
-       imu_intrinsci_option->GetDouble("nbgz")},
-      {imu_intrinsci_option->GetDouble("kgx"),
-       imu_intrinsci_option->GetDouble("kgy"),
-       imu_intrinsci_option->GetDouble("kgz")},
-      {imu_intrinsci_option->GetDouble("tgx"),
-       imu_intrinsci_option->GetDouble("tgy"),
-       imu_intrinsci_option->GetDouble("tgz")},
-      {imu_intrinsci_option->GetDouble("tgx1"),
-       imu_intrinsci_option->GetDouble("tgy1"),
-       imu_intrinsci_option->GetDouble("tgz1")},
-  };
+
+  options.rigid_param.imu_instrinsci.ba =
+      Eigen::Vector3d{imu_intrinsci_option->GetDouble("bax"),
+                      imu_intrinsci_option->GetDouble("bay"),
+                      imu_intrinsci_option->GetDouble("baz")};
+  options.rigid_param.imu_instrinsci.nba =
+      Eigen::Vector3d{imu_intrinsci_option->GetDouble("nbax"),
+                      imu_intrinsci_option->GetDouble("nbay"),
+                      imu_intrinsci_option->GetDouble("nbaz")};
+  options.rigid_param.imu_instrinsci.ka =
+      Eigen::Vector3d{imu_intrinsci_option->GetDouble("kax"),
+                      imu_intrinsci_option->GetDouble("kay"),
+                      imu_intrinsci_option->GetDouble("kaz")};
+  options.rigid_param.imu_instrinsci.ta.setIdentity();
+  options.rigid_param.imu_instrinsci.ta(0, 1) =
+      imu_intrinsci_option->GetDouble("tayz");
+  options.rigid_param.imu_instrinsci.ta(0, 2) =
+      imu_intrinsci_option->GetDouble("tazy");
+  options.rigid_param.imu_instrinsci.ta(1, 2) =
+      imu_intrinsci_option->GetDouble("tazx");
+
+  options.rigid_param.imu_instrinsci.bg =
+      Eigen::Vector3d{imu_intrinsci_option->GetDouble("bgx"),
+                      imu_intrinsci_option->GetDouble("bgy"),
+                      imu_intrinsci_option->GetDouble("bgz")};
+  options.rigid_param.imu_instrinsci.nbg =
+      Eigen::Vector3d{imu_intrinsci_option->GetDouble("nbgx"),
+                      imu_intrinsci_option->GetDouble("nbgy"),
+                      imu_intrinsci_option->GetDouble("nbgz")};
+  options.rigid_param.imu_instrinsci.kg =
+      Eigen::Vector3d{imu_intrinsci_option->GetDouble("kgx"),
+                      imu_intrinsci_option->GetDouble("kgy"),
+                      imu_intrinsci_option->GetDouble("kgz")};
+
+  options.rigid_param.imu_instrinsci.tg.setIdentity();
+  options.rigid_param.imu_instrinsci.tg(0, 1) =
+      imu_intrinsci_option->GetDouble("tgyz");
+  options.rigid_param.imu_instrinsci.tg(0, 2) =
+      imu_intrinsci_option->GetDouble("tgzy");
+  options.rigid_param.imu_instrinsci.tg(1, 0) =
+      imu_intrinsci_option->GetDouble("tgxz");
+  options.rigid_param.imu_instrinsci.tg(1, 2) =
+      imu_intrinsci_option->GetDouble("tgzx");
+  options.rigid_param.imu_instrinsci.tg(2, 0) =
+      imu_intrinsci_option->GetDouble("tgxy");
+  options.rigid_param.imu_instrinsci.tg(2, 1) =
+      imu_intrinsci_option->GetDouble("tgyx");
 
   auto sensor_extrinsic_options =
       lua_parameter_dictionary->GetDictionary("sensor_extrinsic");
@@ -84,8 +102,8 @@ NeptuneOptions CreateNodeOptions(
                                       body_to_imu->GetDouble("yaw")))};
   auto kinamics_opt =
       lua_parameter_dictionary->GetDictionary("kinamics_params");
-  auto kinamins_nv = kinamics_opt->GetDictionary("nw");
-  auto kinamins_nw = kinamics_opt->GetDictionary("nv");
+  auto kinamins_nv = kinamics_opt->GetDictionary("nv");
+  auto kinamins_nw = kinamics_opt->GetDictionary("nw");
 
   options.rigid_param.kinamics_params =
       NeptuneOptions::RigidParm::KinamicsParams{

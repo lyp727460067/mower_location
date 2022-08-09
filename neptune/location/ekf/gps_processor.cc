@@ -46,7 +46,7 @@ bool GpsProcessor::UpdateStateByGpsPosition(
   state->timestamp = gps_data_ptr->timestamp;
 
   // LOG(INFO) << "after update with gps";
-  // LOG(INFO) << *state;
+  LOG(INFO) << *state;
 
   return true;
 }

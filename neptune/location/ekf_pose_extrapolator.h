@@ -4,15 +4,14 @@
 #define LOCATION_POSE_EXTRAPOLATOR_H
 
 #include "neptune/common/time.h"
-#include "neptune/location/kinamics.h"
 #include "neptune/location/ekf/imu_gps_localizer.h"
 #include "neptune/location/imu_tracker.h"
+#include "neptune/location/kinamics.h"
 #include "neptune/location/pose_extrapolator_interface.h"
 #include <deque>
 #include <memory>
 namespace neptune {
 namespace location {
-
 
 class PoseExtrapolatorEkf : public PoseExtrapolatorInterface {
 public:
@@ -72,6 +71,8 @@ private:
 
   Eigen::Vector3d linear_velocity_from_odometry_ = Eigen::Vector3d::Zero();
   Eigen::Vector3d angular_velocity_from_odometry_ = Eigen::Vector3d::Zero();
+
+  std::mutex ekf_lock_;
   std::unique_ptr<ImuGpsLocalizer> ekf_imu_gps_fustion_;
   std::unique_ptr<ImuGpsLocalizer> ekf_imu_gps_fustion_extrapolte_;
   State fused_state_;

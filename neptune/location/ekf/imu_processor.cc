@@ -18,7 +18,8 @@ void ImuProcessor::Predict(const ImuDataPtr last_imu, const ImuDataPtr cur_imu,
                            State *state) {
   if (cur_imu->timestamp < state->timestamp) {
     // LOG(WARNING) << "IMU timestamp jump back from "
-    //              << std::setprecision(std::numeric_limits<double>::max_digits10)
+    //              <<
+    //              std::setprecision(std::numeric_limits<double>::max_digits10)
     //              << state->timestamp << " to " << cur_imu->timestamp;
     return;
   }
@@ -88,7 +89,7 @@ void ImuProcessor::Predict(const ImuDataPtr last_imu, const ImuDataPtr cur_imu,
   // Time and imu.
   state->timestamp = cur_imu->timestamp;
   state->imu_data_ptr = cur_imu;
-  // LOG(INFO) << "imu predict done : " << *state;
+  LOG_EVERY_N(INFO, 20) << "imu predict done : \n" << *state;
 }
 } // namespace location
 } // namespace neptune

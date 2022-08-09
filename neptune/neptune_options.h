@@ -10,12 +10,11 @@ struct NeptuneOptions {
       Eigen::Vector3d ba;
       Eigen::Vector3d nba;
       Eigen::Vector3d ka;
-      Eigen::Vector3d ta;
+      Eigen::Matrix3d ta;
       Eigen::Vector3d bg;
       Eigen::Vector3d nbg;
       Eigen::Vector3d kg;
-      Eigen::Vector3d tg;
-      Eigen::Vector3d tg1;
+      Eigen::Matrix3d tg;
     } imu_instrinsci;
     struct SensorExtrinsic {
       transform::Rigid3d imu_to_gps;

@@ -12,6 +12,7 @@ TwoWhellKinamics::ForwdVelocity(const sensor::EncoderData &encoder_data_last,
   double dl = encoder_data.encoder.x() - encoder_data_last.encoder.x();
   double dr = encoder_data.encoder.y() - encoder_data_last.encoder.y();
   double dt = common::ToSeconds(encoder_data.time - encoder_data_last.time);
+
   ret.v_b.x() = (dl + dr) / (2 * dt);
   ret.v_b.y() = 0;
   ret.v_b.z() = 0;
@@ -20,6 +21,10 @@ TwoWhellKinamics::ForwdVelocity(const sensor::EncoderData &encoder_data_last,
   ret.w_b.z() = (dr - dl) / (options_.b * dt);
   ret.cov.setZero();
   ImuData imu_unused;
+  if (dt < 0.001) {
+    ret.v_b.setZero();
+    ret.w_b.setZero();
+  }
   ret.cov = CovGenerate(ret, imu_unused);
   // LOG(INFO) << ret;
   return ret;

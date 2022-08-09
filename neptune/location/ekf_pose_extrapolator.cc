@@ -44,28 +44,28 @@ void PoseExtrapolatorEkf::AddOdometryData(
     const sensor::OdometryData &odometry_data) {}
 void PoseExtrapolatorEkf::AddEncoderData(
     const sensor::EncoderData &encoder_data) {
-  // const auto &time = encoder_data.time;
+  std::lock_guard<std::mutex> lck(ekf_lock_);
 
-  // static sensor::EncoderData encoder_data_last = encoder_data;
+  const auto &time = encoder_data.time;
 
-  // OdomVelocityData odom_vel =
-  //     odom_kinamics_->ForwdVelocity(encoder_data_last, encoder_data);
-  // encoder_data_last = encoder_data;
-  // LOG(INFO) << "get encoder " << odom_vel;
-  // if (!ekf_imu_gps_fustion_->Initialized()) {
-  //   return;
-  // }
+  static sensor::EncoderData encoder_data_last = encoder_data;
 
-  // PredictEkfWithImu(ekf_imu_gps_fustion_.get(), time);
-  // if (!ekf_imu_gps_fustion_->ProcessOdomData(
-  //         std::make_shared<OdomVelocityData>(odom_vel))) {
-  //   return;
-  // }
-  // LOG(INFO) << "updata odom";
-  // ekf_imu_gps_fustion_extrapolte_ =
-  //     std::make_unique<ImuGpsLocalizer>(*ekf_imu_gps_fustion_);
-  // AddPose(time, transform::Rigid3d{fused_state_.G_p_I,
-  //                                  Eigen::Quaterniond(fused_state_.G_R_I)});
+  OdomVelocityData odom_vel =
+      odom_kinamics_->ForwdVelocity(encoder_data_last, encoder_data);
+  encoder_data_last = encoder_data;
+  if (!ekf_imu_gps_fustion_->Initialized()) {
+    return;
+  }
+
+  PredictEkfWithImu(ekf_imu_gps_fustion_.get(), time);
+  if (!ekf_imu_gps_fustion_->ProcessOdomData(
+          std::make_shared<OdomVelocityData>(odom_vel))) {
+    return;
+  }
+  ekf_imu_gps_fustion_extrapolte_ =
+      std::make_unique<ImuGpsLocalizer>(*ekf_imu_gps_fustion_);
+  AddPose(time, transform::Rigid3d{fused_state_.G_p_I,
+                                   Eigen::Quaterniond(fused_state_.G_R_I)});
 }
 
 Eigen::Quaterniond
@@ -111,6 +111,8 @@ void PoseExtrapolatorEkf::AddFixedFramePoseData(
     const sensor::FixedFramePoseData &fixed_frame_pose_data) {
   const auto &time = fixed_frame_pose_data.time;
 
+  std::lock_guard<std::mutex> lck(ekf_lock_);
+
   PredictEkfWithImu(ekf_imu_gps_fustion_.get(), time);
   const auto &fix_data = fixed_frame_pose_data;
   if (!ekf_imu_gps_fustion_->ProcessGpsPositionData(
@@ -129,12 +131,14 @@ void PoseExtrapolatorEkf::AddFixedFramePoseData(
 
 transform::Rigid3d
 PoseExtrapolatorEkf::ExtrapolatePose(const common::Time time) {
+  std::lock_guard<std::mutex> lck(ekf_lock_);
+
   if (timed_pose_queue_.empty())
     return transform::Rigid3d::Identity();
   if (ekf_imu_gps_fustion_extrapolte_ == nullptr)
     return transform::Rigid3d::Identity();
   const TimedPose &newest_timed_pose = timed_pose_queue_.back();
-  CHECK_GE(time, newest_timed_pose.time);
+  // CHECK_GE(time, newest_timed_pose.time);
   if (cached_extrapolated_pose_.time != time) {
     PredictEkfWithImu(ekf_imu_gps_fustion_extrapolte_.get(), time);
     auto state = ekf_imu_gps_fustion_extrapolte_->GetState();

@@ -41,10 +41,11 @@ struct OdomVelocityData {
   Eigen::Vector3d w_b;
   Eigen::Matrix<double, 6, 6> cov;
 
-  friend std::ostream &operator<<(std::ostream &os, OdomVelocityData &data) {
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const OdomVelocityData &data) {
     os << std::setprecision(std::numeric_limits<double>::max_digits10)
-       << data.timestamp << " " << data.v_b.transpose() << " "
-       << data.w_b.transpose();
+       << data.timestamp << std::setprecision(2) << " " << data.v_b.transpose()
+       << " " << data.w_b.transpose();
     return os;
   }
 };
@@ -69,14 +70,15 @@ struct State {
 
   // The imu data.
   ImuDataPtr imu_data_ptr;
-  friend std::ostream &operator<<(std::ostream &os, State &data) {
+  friend std::ostream &operator<<(std::ostream &os, const State &data) {
     os << std::setprecision(std::numeric_limits<double>::max_digits10)
-       << data.timestamp << " p = " << data.G_v_I.transpose()
-       << " v = " << data.G_v_I.transpose()
-       << " eulerAngle = " << data.G_R_I.eulerAngles(2, 1, 0).transpose()
-       << " acc bias = " << data.acc_bias.transpose()
-       << " gyro bias = " << data.gyro_bias.transpose()
-       << " gyro = " << data.gyro.transpose() << " \ncov = \n " << data.cov;
+       << "time = " << data.timestamp << std::setprecision(2)
+       << "\n p = " << data.G_p_I.transpose()
+       << "\n v = " << data.G_v_I.transpose()
+       << "\n eulerAngle = " << data.G_R_I.eulerAngles(2, 1, 0).transpose()
+       << "\n acc bias = " << data.acc_bias.transpose()
+       << "\n gyro bias = " << data.gyro_bias.transpose();
+    //  << " gyro = " << data.gyro.transpose() << " \ncov = \n " << data.cov;
     return os;
   }
 };

@@ -70,6 +70,8 @@ if(NOT ${NOT_BUILD_WITH_ROS})
   )
 endif()
 
+install(TARGETS ${PROJECT_NAME} DESTINATION lib/locator)
+
 # # Declare a C++ library
 # add_library(${PROJECT_NAME}
 # src/${PROJECT_NAME}/neptune.cpp

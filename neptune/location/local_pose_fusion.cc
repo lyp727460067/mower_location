@@ -196,7 +196,8 @@ void LocalPoseFusion::AddOdometryData(
 }
 
 LocalPoseFusionWithEskf::LocalPoseFusionWithEskf(
-    const PoseExtrapolatorEkfOption &option) {
+    const PoseExtrapolatorEkfOption &option)
+    : option_(option) {
   extrapolator_ = std::make_unique<PoseExtrapolatorEkf>(option_);
 }
 
@@ -247,6 +248,7 @@ transform::Rigid3d PureOdomImuFusion::ExtrapolatePose(const common::Time time) {
   if (extrapolator_ != nullptr) {
     return extrapolator_->ExtrapolatePose(time);
   }
+  return {};
 }
 
 std::unique_ptr<transform::Rigid3d> PureOdomImuFusion::AddFixedFramePoseData(
