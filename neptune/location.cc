@@ -71,4 +71,4 @@ void NeptuneLocation::AddFixedFramePoseData(
   location_->AddFixedFramePoseData(fix_data);
 }
 
-}  // namespace neptune
+} // namespace neptune

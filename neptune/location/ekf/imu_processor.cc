@@ -1,26 +1,33 @@
 #include "imu_processor.h"
-#include <glog/logging.h>
-#include <Eigen/Dense>
 #include "utils.h"
+#include <Eigen/Dense>
+#include <glog/logging.h>
+#include <iomanip>
 namespace neptune {
 namespace location {
 
 ImuProcessor::ImuProcessor(const double acc_noise, const double gyro_noise,
                            const double acc_bias_noise,
                            const double gyro_bias_noise,
-                           const Eigen::Vector3d& gravity)
-    : acc_noise_(acc_noise),
-      gyro_noise_(gyro_noise),
-      acc_bias_noise_(acc_bias_noise),
-      gyro_bias_noise_(gyro_bias_noise),
+                           const Eigen::Vector3d &gravity)
+    : acc_noise_(acc_noise), gyro_noise_(gyro_noise),
+      acc_bias_noise_(acc_bias_noise), gyro_bias_noise_(gyro_bias_noise),
       gravity_(gravity) {}
 
 void ImuProcessor::Predict(const ImuDataPtr last_imu, const ImuDataPtr cur_imu,
-                           State* state) {
-  // Time.
-  const double delta_t = cur_imu->timestamp - last_imu->timestamp;
-  const double delta_t2 = delta_t * delta_t;
+                           State *state) {
+  if (cur_imu->timestamp < state->timestamp) {
+    // LOG(WARNING) << "IMU timestamp jump back from "
+    //              << std::setprecision(std::numeric_limits<double>::max_digits10)
+    //              << state->timestamp << " to " << cur_imu->timestamp;
+    return;
+  }
 
+  // Time.
+  const double delta_t = cur_imu->timestamp - state->timestamp;
+  const double delta_t2 = delta_t * delta_t;
+  // LOG(INFO) << "predict with imu " << *cur_imu << " dt = " << delta_t;
+  // LOG(INFO) << "before predict: " << *state;
   // Set last state.
   State last_state = *state;
 
@@ -43,10 +50,11 @@ void ImuProcessor::Predict(const ImuDataPtr last_imu, const ImuDataPtr cur_imu,
                                              delta_angle_axis.normalized())
                                .toRotationMatrix();
   }
+  state->gyro = gyro_unbias;
   // Error-state. Not needed.
 
   // Covariance of the error-state.
-  Eigen::Matrix<double, 15, 15> Fx = Eigen::Matrix<double, 15, 15>::Identity();
+  Eigen::Matrix<double, 18, 18> Fx = Eigen::Matrix<double, 18, 18>::Identity();
   Fx.block<3, 3>(0, 3) = Eigen::Matrix3d::Identity() * delta_t;
   Fx.block<3, 3>(3, 6) = -state->G_R_I * GetSkewMatrix(acc_unbias) * delta_t;
   Fx.block<3, 3>(3, 9) = -state->G_R_I * delta_t;
@@ -60,8 +68,9 @@ void ImuProcessor::Predict(const ImuDataPtr last_imu, const ImuDataPtr cur_imu,
   }
   Fx.block<3, 3>(6, 12) = -Eigen::Matrix3d::Identity() * delta_t;
 
-  Eigen::Matrix<double, 15, 12> Fi = Eigen::Matrix<double, 15, 12>::Zero();
+  Eigen::Matrix<double, 18, 12> Fi = Eigen::Matrix<double, 18, 12>::Zero();
   Fi.block<12, 12>(3, 0) = Eigen::Matrix<double, 12, 12>::Identity();
+  Fi.block<3, 3>(15, 3) = Eigen::Matrix3d::Identity();
 
   Eigen::Matrix<double, 12, 12> Qi = Eigen::Matrix<double, 12, 12>::Zero();
   Qi.block<3, 3>(0, 0) = delta_t2 * acc_noise_ * Eigen::Matrix3d::Identity();
@@ -71,11 +80,15 @@ void ImuProcessor::Predict(const ImuDataPtr last_imu, const ImuDataPtr cur_imu,
   Qi.block<3, 3>(9, 9) =
       delta_t * gyro_bias_noise_ * Eigen::Matrix3d::Identity();
 
+  // LOG(INFO) << "Fx = \n" << Fx;
+  // LOG(INFO) << "Qi = \n" << Fi * Qi * Fi.transpose();
+
   state->cov = Fx * last_state.cov * Fx.transpose() + Fi * Qi * Fi.transpose();
 
   // Time and imu.
   state->timestamp = cur_imu->timestamp;
   state->imu_data_ptr = cur_imu;
+  // LOG(INFO) << "imu predict done : " << *state;
 }
-}  // namespace location
-}  // namespace neptune
+} // namespace location
+} // namespace neptune

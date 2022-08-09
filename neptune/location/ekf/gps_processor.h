@@ -17,13 +17,13 @@ class GpsProcessor {
   void ComputeJacobianAndResidual(const Eigen::Vector3d& init_lla,
                                   const GpsPositionDataPtr gps_data,
                                   const State& state,
-                                  Eigen::Matrix<double, 3, 15>* jacobian,
+                                  Eigen::Matrix<double, 3, 18>* jacobian,
                                   Eigen::Vector3d* residual);
 
   const Eigen::Vector3d I_p_Gps_;
 };
 
-void AddDeltaToState(const Eigen::Matrix<double, 15, 1>& delta_x, State* state);
+
 }  // namespace location
 }  // namespace neptune
 

@@ -21,16 +21,17 @@ struct FusionOption {
 };
 
 class FustionInterface {
- public:
-  static std::unique_ptr<FustionInterface> CreatFusion(
-      const FusionOption option);
-  virtual std::unique_ptr<transform::Rigid3d> AddFixedFramePoseData(
-      const sensor::FixedFramePoseData& fix_data) = 0;
-  virtual void AddImuData(const sensor::ImuData& imu_data) = 0;
-  virtual void AddOdometryData(const sensor::OdometryData& odometry_data) = 0;
+public:
+  static std::unique_ptr<FustionInterface>
+  CreatFusion(const FusionOption option);
+  virtual std::unique_ptr<transform::Rigid3d>
+  AddFixedFramePoseData(const sensor::FixedFramePoseData &fix_data) = 0;
+  virtual void AddImuData(const sensor::ImuData &imu_data) = 0;
+  virtual void AddOdometryData(const sensor::OdometryData &odometry_data) = 0;
+  virtual void AddEncoderData(const sensor::EncoderData &odometry_data) = 0;
   virtual transform::Rigid3d ExtrapolatePose(common::Time time) = 0;
 };
 
-}  // namespace location
-}  // namespace neptune
+} // namespace location
+} // namespace neptune
 #endif

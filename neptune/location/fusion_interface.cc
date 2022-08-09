@@ -4,8 +4,8 @@
 namespace neptune {
 namespace location {
 
-std::unique_ptr<FustionInterface> FustionInterface::CreatFusion(
-    const FusionOption option) {
+std::unique_ptr<FustionInterface>
+FustionInterface::CreatFusion(const FusionOption option) {
   if (option.use_fustion_type == 0) {
     return std::make_unique<PureOdomImuFusion>();
   } else if (option.use_fustion_type == 1) {
@@ -16,5 +16,5 @@ std::unique_ptr<FustionInterface> FustionInterface::CreatFusion(
     CHECK(option.use_fustion_type != 3) << "optimazation type not implent";
   }
 }
-}  // namespace location
-}  // namespace neptune
+} // namespace location
+} // namespace neptune

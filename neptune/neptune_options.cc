@@ -8,7 +8,7 @@
 namespace neptune {
 
 NeptuneOptions CreateNodeOptions(
-    common::LuaParameterDictionary* const lua_parameter_dictionary) {
+    common::LuaParameterDictionary *const lua_parameter_dictionary) {
   NeptuneOptions options;
   // auto neptune_option = lua_parameter_dictionary->GetDictionary("neptune");
   auto imu_intrinsci_option =
@@ -28,7 +28,7 @@ NeptuneOptions CreateNodeOptions(
        imu_intrinsci_option->GetDouble("taz")},
       {imu_intrinsci_option->GetDouble("bgx"),
        imu_intrinsci_option->GetDouble("bgy"),
-       imu_intrinsci_option->GetDouble("bgz")},     
+       imu_intrinsci_option->GetDouble("bgz")},
       {imu_intrinsci_option->GetDouble("nbgx"),
        imu_intrinsci_option->GetDouble("nbgy"),
        imu_intrinsci_option->GetDouble("nbgz")},
@@ -45,8 +45,7 @@ NeptuneOptions CreateNodeOptions(
 
   auto sensor_extrinsic_options =
       lua_parameter_dictionary->GetDictionary("sensor_extrinsic");
-  auto  fusion_optoin =
-      lua_parameter_dictionary->GetDictionary("fusion_option");
+  auto fusion_optoin = lua_parameter_dictionary->GetDictionary("fusion_option");
   options.fustion_options.location_use_type =
       fusion_optoin->GetInt("location_use_type");
 
@@ -57,7 +56,7 @@ NeptuneOptions CreateNodeOptions(
       local_pose_option->GetDouble("extraplaton_weitht")};
   auto imu_to_gps = sensor_extrinsic_options->GetDictionary("imu_to_gps");
   auto imu_to_odom = sensor_extrinsic_options->GetDictionary("imu_to_odom");
-  auto bady_to_imu = sensor_extrinsic_options->GetDictionary("bady_to_imu");
+  auto body_to_imu = sensor_extrinsic_options->GetDictionary("body_to_imu");
   options.rigid_param.sensor_extrinsic =
       NeptuneOptions::RigidParm::SensorExtrinsic{
           transform::Rigid3d(
@@ -77,17 +76,32 @@ NeptuneOptions CreateNodeOptions(
                                       imu_to_odom->GetDouble("yaw"))),
 
           transform::Rigid3d(
-              Eigen::Vector3d{bady_to_imu->GetDouble("x"),
-                              bady_to_imu->GetDouble("y"),
-                              bady_to_imu->GetDouble("z")},
-              transform::RollPitchYaw(bady_to_imu->GetDouble("r"),
-                                      bady_to_imu->GetDouble("p"),
-                                      bady_to_imu->GetDouble("yaw")))};
+              Eigen::Vector3d{body_to_imu->GetDouble("x"),
+                              body_to_imu->GetDouble("y"),
+                              body_to_imu->GetDouble("z")},
+              transform::RollPitchYaw(body_to_imu->GetDouble("r"),
+                                      body_to_imu->GetDouble("p"),
+                                      body_to_imu->GetDouble("yaw")))};
+  auto kinamics_opt =
+      lua_parameter_dictionary->GetDictionary("kinamics_params");
+  auto kinamins_nv = kinamics_opt->GetDictionary("nw");
+  auto kinamins_nw = kinamics_opt->GetDictionary("nv");
+
+  options.rigid_param.kinamics_params =
+      NeptuneOptions::RigidParm::KinamicsParams{
+          kinamics_opt->GetDouble("b"),
+          Eigen::Vector3d{kinamins_nv->GetDouble("x"),
+                          kinamins_nv->GetDouble("y"),
+                          kinamins_nv->GetDouble("z")},
+          Eigen::Vector3d{kinamins_nw->GetDouble("x"),
+                          kinamins_nw->GetDouble("y"),
+                          kinamins_nw->GetDouble("z")},
+          kinamics_opt->GetDouble("r")};
   return options;
 }
 
-NeptuneOptions LodeOptions(const std::string& configuration_directory,
-                           const std::string& configuration_basename) {
+NeptuneOptions LodeOptions(const std::string &configuration_directory,
+                           const std::string &configuration_basename) {
   auto file_resolver = std::make_unique<common::ConfigurationFileResolver>(
       std::vector<std::string>{configuration_directory});
   const std::string code =
@@ -97,4 +111,4 @@ NeptuneOptions LodeOptions(const std::string& configuration_directory,
 
   return CreateNodeOptions(&lua_parameter_dictionary);
 }
-}  // namespace neptune
+} // namespace neptune
