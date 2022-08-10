@@ -136,7 +136,7 @@ void Run(const std::string &inputbag_name) {
            transform::Rigid3d(translation, rotation)});
       // }
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     if (msg.isType<sensor_msgs::Imu>()) {
       const sensor_msgs::Imu &imu = *msg.instantiate<sensor_msgs::Imu>();
 

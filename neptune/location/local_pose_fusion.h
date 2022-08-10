@@ -18,6 +18,11 @@ public:
   void AddOdometryData(const sensor::OdometryData &odometry_data) override;
   transform::Rigid3d ExtrapolatePose(common::Time time) override;
   void AddEncoderData(const sensor::EncoderData &encoder_data) override {}
+ private:
+  struct LocalData {
+    transform::Rigid3d local_data;
+    sensor::FixedFramePoseData fix_data;
+  };
 
 private:
   const bool pure_local_pose = false;
@@ -27,10 +32,13 @@ private:
                                  const sensor::FixedFramePoseData &fix_data);
   LocalPoseFusionOption option_;
   std::unique_ptr<PoseExtrapolatorInterface> extrapolator_;
+  std::unique_ptr<PoseExtrapolatorInterface> extrapolator_pub;
   Eigen::Matrix<double, 9, 9> conv_ =
       Eigen::Matrix<double, 9, 9>::Identity() * 100;
   transform::Rigid3d ekf_states_;
   transform::Rigid3d last_extrapolator_pose_;
+  std::deque<LocalData> data_;
+
 };
 class LocalPoseFusionWithEskf : public FustionInterface {
 public:

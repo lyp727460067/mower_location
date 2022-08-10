@@ -58,10 +58,12 @@ class Rigid2 {
     return Rigid2(translation, rotation);
   }
 
-  // std::string DebugString() const {
-  //   return absl::Substitute("{ t: [$0, $1], r: [$2] }", translation().x(),
-  //                           translation().y(), rotation().angle());
-  // }
+  std::string DebugString() const {
+    std::stringstream info;
+    info << "{ t: [" << translation().x() << " " << translation().y() << " ]"
+         << "r : [ " << rotation_.angle() << " ]";
+    return info.str();
+  }
 
  private:
   Vector translation_;

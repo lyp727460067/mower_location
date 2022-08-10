@@ -91,19 +91,30 @@ const Eigen::Matrix<double, 9, 9> PoseExtrapolatorVari() {
   noise.tail<3>() = Eigen::Vector3d{0.01, 0.01, 100};
   return noise.asDiagonal();
 }
-transform::Rigid3d
-LocalPoseFusion::CeresUpdata(const transform::Rigid3d pose_expect,
-                             const sensor::FixedFramePoseData &fix_data) {
-  ceres::LocalParameterization *quaternion_local =
+transform::Rigid3d LocalPoseFusion::CeresUpdata(
+    const transform::Rigid3d pose_expect,
+    const sensor::FixedFramePoseData& fix_data) {
+  if (data_.empty()) {
+    data_.push_back({pose_expect, fix_data});
+    return transform::Rigid3d::Identity();
+  }
+
+  data_.push_back({pose_expect, fix_data});
+  ceres::LocalParameterization* quaternion_local =
       new ceres::EigenQuaternionParameterization;
   ceres::Problem problem;
   std::array<double, 3> pose;
-  problem.AddResidualBlock(
-      GpsCostFunction::Creat(
-          pose_expect.translation().head<2>(),
-          fix_data.pose.translation().head<2>(),
-          std::array<double, 2>{option_.fix_weitht, option_.fix_weitht}),
-      nullptr, pose.data());
+  for (auto data : data_) {
+    problem.AddResidualBlock(
+        GpsCostFunction::Creat(
+            data.local_data.translation().head<2>(),
+            data.fix_data.pose.translation().head<2>(),
+            std::array<double, 2>{option_.fix_weitht, option_.fix_weitht}),
+        nullptr, pose.data());
+  }
+  if (data_.size() >= 4) {
+    data_.pop_front();
+  }
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = false;
   options.max_num_iterations = 20;
@@ -113,6 +124,7 @@ LocalPoseFusion::CeresUpdata(const transform::Rigid3d pose_expect,
 
   transform::Rigid2d pose_gps_to_local =
       transform::Rigid2d(Eigen::Vector2d(pose[0], pose[1]), pose[2]);
+  LOG(INFO)<<pose_gps_to_local;
   return transform::Embed3D(pose_gps_to_local) * pose_expect;
 }
 transform::Rigid3d
@@ -161,11 +173,11 @@ std::unique_ptr<transform::Rigid3d> LocalPoseFusion::AddFixedFramePoseData(
   if (option_.fustion_type == 0) {
     pose_update = UpdataPose(pose_expect, fix_data);
   } else if (option_.fustion_type == 1) {
-    LOG(INFO) << "ceres optimazation";
+    
     pose_update = CeresUpdata(pose_expect, fix_data);
   }
-  extrapolator_->AddPose(fix_data.time, pose_update);
-  ekf_states_ = pose_update;
+  extrapolator_->AddPose(fix_data.time, pose_expect);
+  ekf_states_ =  pose_update;
   return std::make_unique<transform::Rigid3d>();
 }
 void LocalPoseFusion::AddImuData(const sensor::ImuData &imu_data) {
