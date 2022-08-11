@@ -1,7 +1,7 @@
 
 
-#ifndef LOCATION_POSE_EXTRAPOLATOR_H
-#define LOCATION_POSE_EXTRAPOLATOR_H
+#ifndef Ekf_LOCATION_POSE_EXTRAPOLATOR_H
+#define  Ekf_LOCATION_POSE_EXTRAPOLATOR_H
 
 #include "neptune/common/time.h"
 #include "neptune/location/ekf/imu_gps_localizer.h"

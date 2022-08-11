@@ -30,6 +30,8 @@ public:
   virtual void AddOdometryData(const sensor::OdometryData &odometry_data) = 0;
   virtual void AddEncoderData(const sensor::EncoderData &odometry_data) = 0;
   virtual transform::Rigid3d ExtrapolatePose(common::Time time) = 0;
+  private:
+  
 };
 
 } // namespace location

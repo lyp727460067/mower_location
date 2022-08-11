@@ -121,6 +121,7 @@ void Run(const std::string &inputbag_name) {
   for (auto view_iterator = view.begin(); view_iterator != view.end();
        view_iterator++) {
     rosbag::MessageInstance msg = *view_iterator;
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     if (msg.isType<nav_msgs::Odometry>()) {
       // if (msg.getTopic() == odom_topic) {
       const nav_msgs::Odometry &odom = *msg.instantiate<nav_msgs::Odometry>();
@@ -136,23 +137,16 @@ void Run(const std::string &inputbag_name) {
            transform::Rigid3d(translation, rotation)});
       // }
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     if (msg.isType<sensor_msgs::Imu>()) {
-      const sensor_msgs::Imu &imu = *msg.instantiate<sensor_msgs::Imu>();
-
-      Eigen::Vector3d acc{imu.linear_acceleration.y +
-                              options.rigid_param.imu_instrinsci.ba.y(),
-                          -imu.linear_acceleration.x -
-                              options.rigid_param.imu_instrinsci.ba.x(),
-                          imu.linear_acceleration.z +
-                              options.rigid_param.imu_instrinsci.ba.z()};
-      Eigen::Vector3d gyro{
-          imu.angular_velocity.y + options.rigid_param.imu_instrinsci.bg.y(),
-          -imu.angular_velocity.x - options.rigid_param.imu_instrinsci.bg.x(),
-          imu.angular_velocity.z + options.rigid_param.imu_instrinsci.bg.z()};
-
-      pose_extraplotor->AddImuData(
-          sensor::ImuData{FromRos(imu.header.stamp), acc, gyro});
+      const sensor_msgs::Imu& imu = *msg.instantiate<sensor_msgs::Imu>();
+      pose_extraplotor->AddImuData(sensor::ImuData{
+          FromRos(imu.header.stamp),
+          Eigen::Vector3d{imu.linear_acceleration.x, imu.linear_acceleration.y,
+                          imu.linear_acceleration.z} +
+              options.rigid_param.imu_instrinsci.ba,
+          Eigen::Vector3d{imu.angular_velocity.x, imu.angular_velocity.y,
+                          imu.angular_velocity.z} +
+              options.rigid_param.imu_instrinsci.bg});
       auto pose = pose_extraplotor->ExtrapolatePose(FromRos(imu.header.stamp));
       LOG(INFO) << pose;
       PubFusionData(pose);
@@ -169,6 +163,7 @@ void Run(const std::string &inputbag_name) {
       //     Eigen::Matrix3d>(gps.position_covariance.data())};
       //  pose_extraplotor->AddFixedFramePoseData(fix_data);
 
+<<<<<<< HEAD
       if (ecef_to_local_frame == nullptr) {
         ecef_to_local_frame = std::make_unique<Eigen::Affine3d>(
             ComputeLocalFrameFromLatLong(gps.latitude, gps.longitude));
@@ -185,8 +180,7 @@ void Run(const std::string &inputbag_name) {
       //   auto pose = pose_extraplotor->ExtrapolatePose(fix_data.time);
       //   LOG(INFO) << pose;
       //   PubFusionData(pose);
-      // }
-    }
+=======
 
     if (msg.isType<geometry_msgs::Vector3Stamped>()) {
       const geometry_msgs::Vector3Stamped encoder_msg =
@@ -202,7 +196,6 @@ void Run(const std::string &inputbag_name) {
     //   break;
     // }
   };
-}
 int main(int argc, char **argv) {
 
   ros::init(argc, argv, "location_main");

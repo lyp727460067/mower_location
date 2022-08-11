@@ -1,5 +1,9 @@
 #include "neptune/location/local_pose_fusion.h"
+
 #include "ceres/ceres.h"
+#include "neptune/location/pose_extrapolator.h"
+
+#include "neptune/location/ekf_pose_extrapolator.h"
 namespace neptune {
 namespace location {
 inline Eigen::Matrix3d SkewSymmetric(const Eigen::Vector3d &w) {
@@ -16,7 +20,8 @@ inline Eigen::Matrix3d SkewSymmetric(const Eigen::Vector3d &w) {
   return w_hat;
 }
 
-template <typename T> inline T NormalizeAngle(const T &angle_radians) {
+template <typename T>
+inline T NormalizeAngle(const T& angle_radians) {
   T two_pi(2.0 * M_PI);
   return angle_radians - two_pi * floor((angle_radians + T(M_PI)) / two_pi);
 }
@@ -91,6 +96,11 @@ const Eigen::Matrix<double, 9, 9> PoseExtrapolatorVari() {
   noise.tail<3>() = Eigen::Vector3d{0.01, 0.01, 100};
   return noise.asDiagonal();
 }
+LocalPoseFusion::LocalPoseFusion(const LocalPoseFusionOption& option)
+    : option_(option) {
+
+}
+
 transform::Rigid3d LocalPoseFusion::CeresUpdata(
     const transform::Rigid3d pose_expect,
     const sensor::FixedFramePoseData& fix_data) {
@@ -103,7 +113,9 @@ transform::Rigid3d LocalPoseFusion::CeresUpdata(
   ceres::LocalParameterization* quaternion_local =
       new ceres::EigenQuaternionParameterization;
   ceres::Problem problem;
-  std::array<double, 3> pose;
+  std::array<double, 3> pose{pose_gps_to_local_.translation().x(),
+                             pose_gps_to_local_.translation().y(),
+                             pose_gps_to_local_.rotation().angle()};
   for (auto data : data_) {
     problem.AddResidualBlock(
         GpsCostFunction::Creat(
@@ -121,11 +133,10 @@ transform::Rigid3d LocalPoseFusion::CeresUpdata(
   options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
-
-  transform::Rigid2d pose_gps_to_local =
+  pose_gps_to_local_ =
       transform::Rigid2d(Eigen::Vector2d(pose[0], pose[1]), pose[2]);
-  LOG(INFO)<<pose_gps_to_local;
-  return transform::Embed3D(pose_gps_to_local) * pose_expect;
+  LOG(INFO) << pose_gps_to_local_;
+  return transform::Embed3D(pose_gps_to_local_) * pose_expect;
 }
 transform::Rigid3d
 LocalPoseFusion::UpdataPose(const transform::Rigid3d pose_expect,
@@ -147,19 +158,19 @@ LocalPoseFusion::UpdataPose(const transform::Rigid3d pose_expect,
   LOG(INFO) << residual;
   const Eigen::VectorXd delta_x = K * residual;
   LOG(INFO) << delta_x;
-  LOG(INFO) << ekf_states_;
   const Eigen::MatrixXd I_KH = Eigen::Matrix<double, 9, 9>::Identity() - K * H;
   conv_ = I_KH * P * I_KH.transpose() + K * gps_conv * K.transpose();
   const Eigen::Vector3d detata_rotation_x = delta_x.tail(3);
   const auto &delta_rotation =
       transform::AngleAxisVectorToRotationQuaternion(detata_rotation_x);
   const double yaw = transform::GetYaw(delta_rotation);
-  ekf_states_ = transform::Rigid3d(
-      Eigen::Vector3d(ekf_states_.translation() + delta_x.head<3>()),
-      Eigen::Quaterniond((ekf_states_.rotation() * delta_rotation))
-          .normalized());
-  last_extrapolator_pose_ = ekf_states_;
-  return ekf_states_;
+  pose_ = {fix_data.time,
+           transform::Rigid3d(
+               Eigen::Vector3d(pose_.second.translation() + delta_x.head<3>()),
+               Eigen::Quaterniond((pose_.second.rotation() * delta_rotation))
+                   .normalized())};
+  last_extrapolator_pose_ = pose_expect;
+  return pose_.second;
   // extrapolator_->AddPose(fix_data.time, pose_expect);
 }
 std::unique_ptr<transform::Rigid3d> LocalPoseFusion::AddFixedFramePoseData(
@@ -173,11 +184,14 @@ std::unique_ptr<transform::Rigid3d> LocalPoseFusion::AddFixedFramePoseData(
   if (option_.fustion_type == 0) {
     pose_update = UpdataPose(pose_expect, fix_data);
   } else if (option_.fustion_type == 1) {
-    
     pose_update = CeresUpdata(pose_expect, fix_data);
   }
+  if (extrapolator_pub_ == nullptr) {
+    extrapolator_pub_ =
+        std::make_unique<PoseExtrapolator>(common::FromSeconds(0.001), 10.);
+  }
+  extrapolator_pub_->AddPose(fix_data.time, pose_expect);
   extrapolator_->AddPose(fix_data.time, pose_expect);
-  ekf_states_ =  pose_update;
   return std::make_unique<transform::Rigid3d>();
 }
 void LocalPoseFusion::AddImuData(const sensor::ImuData &imu_data) {
@@ -190,12 +204,12 @@ void LocalPoseFusion::AddImuData(const sensor::ImuData &imu_data) {
   extrapolator_ =
       location::PoseExtrapolatorInterface::CreateWithImuData({imu_data});
 }
-
 transform::Rigid3d LocalPoseFusion::ExtrapolatePose(common::Time time) {
-  // return transform::Rigid3d::Rotation(
-  // extrapolator_->EstimateGravityOrientation(time));
-  return ekf_states_;
-  // return extrapolator_->ExtrapolatePose(time);
+  if (extrapolator_pub_ != nullptr) {
+    return transform::Embed3D(pose_gps_to_local_) *
+           extrapolator_->ExtrapolatePose(time);
+  }
+  return transform::Rigid3d::Identity();
 }
 void LocalPoseFusion::AddOdometryData(
     const sensor::OdometryData &odometry_data) {

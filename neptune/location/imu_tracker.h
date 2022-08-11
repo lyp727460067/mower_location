@@ -6,17 +6,14 @@
 #include "neptune/transform/transform.h"
 namespace neptune {
 namespace location {
-class PoseExtrapolator;
-void ResetImuTracker(PoseExtrapolator* extraplota,
-                     const transform::Rigid3d& pose);
+
 // Keeps track of the orientation using angular velocities and linear
 // accelerations from an IMU. Because averaged linear acceleration (assuming
 // slow movement) is a direct measurement of gravity, roll/pitch does not drift,
 // though yaw does.
 class ImuTracker {
  public:
-  friend void ResetImuTracker(PoseExtrapolator* extraplota,
-                              const transform::Rigid3d& pose);
+
   ImuTracker(double imu_gravity_time_constant, common::Time time);
 
   // Advances to the given 'time' and updates the orientation to reflect this.

@@ -31,14 +31,14 @@ private:
   transform::Rigid3d CeresUpdata(const transform::Rigid3d pose_expect,
                                  const sensor::FixedFramePoseData &fix_data);
   LocalPoseFusionOption option_;
+  std::unique_ptr<PoseExtrapolatorInterface> extrapolator_pub_;
   std::unique_ptr<PoseExtrapolatorInterface> extrapolator_;
-  std::unique_ptr<PoseExtrapolatorInterface> extrapolator_pub;
   Eigen::Matrix<double, 9, 9> conv_ =
       Eigen::Matrix<double, 9, 9>::Identity() * 100;
-  transform::Rigid3d ekf_states_;
+  std::pair<common::Time, transform::Rigid3d> pose_;
   transform::Rigid3d last_extrapolator_pose_;
+  transform::Rigid2d pose_gps_to_local_;
   std::deque<LocalData> data_;
-
 };
 class LocalPoseFusionWithEskf : public FustionInterface {
 public:
@@ -64,7 +64,8 @@ public:
   void AddEncoderData(const sensor::EncoderData &encoder_data) override {}
   transform::Rigid3d ExtrapolatePose(common::Time time) override;
 
-private:
+ private:
+  std::unique_ptr<PoseExtrapolatorInterface> extrapolator_pub_;
   std::unique_ptr<PoseExtrapolatorInterface> extrapolator_;
   PoseExtrapolatorEkfOption option_;
 };
