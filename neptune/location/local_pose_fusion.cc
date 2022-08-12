@@ -2,7 +2,7 @@
 
 #include "ceres/ceres.h"
 #include "neptune/location/pose_extrapolator.h"
-
+#include <Eigen/Core>
 #include "neptune/location/ekf_pose_extrapolator.h"
 namespace neptune {
 namespace location {
@@ -71,8 +71,81 @@ private:
   const std::array<double, 2> weigth_;
 };
 
-Eigen::Matrix<double, 9, 9> Fx(const Eigen::Quaterniond &q,
-                               const transform::Rigid3d &delta_pose) {
+template <typename T>
+static std::array<T, 6> ComputeUnscaledError(
+    const transform::Rigid3d& relative_pose, const T* const start_rotation,
+    const T* const start_translation, const T* const end_rotation,
+    const T* const end_translation) {
+  const Eigen::Quaternion<T> R_i_inverse(start_rotation[0], -start_rotation[1],
+                                         -start_rotation[2],
+                                         -start_rotation[3]);
+
+  const Eigen::Matrix<T, 3, 1> delta(end_translation[0] - start_translation[0],
+                                     end_translation[1] - start_translation[1],
+                                     end_translation[2] - start_translation[2]);
+  const Eigen::Matrix<T, 3, 1> h_translation = R_i_inverse * delta;
+
+  const Eigen::Quaternion<T> h_rotation_inverse =
+      Eigen::Quaternion<T>(end_rotation[0], -end_rotation[1], -end_rotation[2],
+                           -end_rotation[3]) *
+      Eigen::Quaternion<T>(start_rotation[0], start_rotation[1],
+                           start_rotation[2], start_rotation[3]);
+
+  const Eigen::Matrix<T, 3, 1> angle_axis_difference =
+      transform::RotationQuaternionToAngleAxisVector(
+          h_rotation_inverse * relative_pose.rotation().cast<T>());
+
+  return {{T(relative_pose.translation().x()) - h_translation[0],
+           T(relative_pose.translation().y()) - h_translation[1],
+           T(relative_pose.translation().z()) - h_translation[2],
+           angle_axis_difference[0], angle_axis_difference[1],
+           angle_axis_difference[2]}};
+}
+template <typename T>
+std::array<T, 3> ScaleError(const std::array<T, 3>& error,
+                            double translation_weight, double rotation_weight) {
+  // clang-format off
+  return {{
+      error[0] * translation_weight,
+      error[1] * translation_weight,
+      error[2] * rotation_weight
+  }};
+  // clang-format on
+}
+
+class GpsWindCostFunction {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  GpsWindCostFunction(const transform::Rigid3d& pose,
+                      const std::array<double, 2>& weitht)
+      : mearemnt_pose_(pose), weigth_(weitht) {}
+  template <typename T>
+  bool operator()(const T* const c_i_rotation, const T* const c_i_translation,
+                  const T* const c_j_rotation, const T* const c_j_translation,
+                  T* const e) const {
+    const std::array<T, 6> error = ScaleError(
+        ComputeUnscaledError(pose_.zbar_ij, c_i_rotation, c_i_translation,
+                             c_j_rotation, c_j_translation),
+        weigth_[0], weigth_[1]);
+    std::copy(std::begin(error), std::end(error), e);
+    return true;
+  }
+  static ceres::CostFunction* CreateAutoDiffCostFunction(
+      const const transform::Rigid3d& pose,
+      const std::array<double, 2>& weitht) {
+    return new ceres::AutoDiffCostFunction<
+        GpsWindCostFunction, 6 /* residuals */, 4 /* rotation variables */,
+        3 /* translation variables */, 4 /* rotation variables */,
+        3 /* translation variables */>(new GpsWindCostFunction(pose, weitht));
+  }
+
+ private:
+  const transform::Rigid3d mearemnt_pose_;
+  const std::array<double, 2> weigth_;
+};
+
+Eigen::Matrix<double, 9, 9> Fx(const Eigen::Quaterniond& q,
+                               const transform::Rigid3d& delta_pose) {
   Eigen::Matrix<double, 9, 9> result = Eigen::Matrix<double, 9, 9>::Identity();
   result.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
   result.block<3, 3>(0, 3) = Eigen::Matrix3d::Identity();
@@ -97,35 +170,56 @@ const Eigen::Matrix<double, 9, 9> PoseExtrapolatorVari() {
   return noise.asDiagonal();
 }
 LocalPoseFusion::LocalPoseFusion(const LocalPoseFusionOption& option)
-    : option_(option) {
+    : option_(option) {}
+std::pair<std::array<double, 3>, std::array<double, 4>> ToCeresPose(
+    const transform::Rigid3d& pose) {
+  return {{
+              {pose.translation().x(), pose.translation().x(),
+               pose.translation().x()},
+          },
+          {
+              {pose.rotation().w(), pose.rotation().x(), pose.rotation().y(),
+               pose.rotation().z()},
 
+          }};
 }
-
+transform::Rigid3d ArrayToRigid(
+    const std::pair<std::array<double, 3>, std::array<double, 4>>& pose) {
+  return transform::Rigid3d(
+      Eigen::Vector3d(pose.first[0], pose.first[1], pose.first[2]),
+      Eigen::Quaterniond(pose.second[0], pose.second[1], pose.second[2],
+                         pose.second[3]));
+}
 transform::Rigid3d LocalPoseFusion::CeresUpdata(
     const transform::Rigid3d pose_expect,
     const sensor::FixedFramePoseData& fix_data) {
-  if (data_.empty()) {
-    data_.push_back({pose_expect, fix_data});
+  const auto ceres_pose = ToCeresPose(pose_expect);
+  slide_windows_pose_.push_back(
+      {ceres_pose.first, ceres_pose.second, {pose_expect, fix_data}});
+  if (slide_windows_pose_.size() == 1) {
     return transform::Rigid3d::Identity();
   }
 
-  data_.push_back({pose_expect, fix_data});
   ceres::LocalParameterization* quaternion_local =
       new ceres::EigenQuaternionParameterization;
   ceres::Problem problem;
-  std::array<double, 3> pose{pose_gps_to_local_.translation().x(),
-                             pose_gps_to_local_.translation().y(),
-                             pose_gps_to_local_.rotation().angle()};
-  for (auto data : data_) {
+  auto fix_local_to_map_ = transform::Rigid3d(
+      pose_gps_to_local_.translation(),
+      Eigen::AngleAxisd(transform::GetYaw(pose_gps_to_local_.rotation()),
+                        Eigen::Vector3d::UnitZ()));
+  auto fix_local_to_map_arry = ToCeresPose(fix_local_to_map_);
+  //初值应该给插值进去
+  for (auto slide_widons_data : slide_windows_pose_) {
     problem.AddResidualBlock(
-        GpsCostFunction::Creat(
-            data.local_data.translation().head<2>(),
-            data.fix_data.pose.translation().head<2>(),
+        GpsWindCostFunction::CreateAutoDiffCostFunction(
+            slide_widons_data.local_data_.fix_data.pose,
             std::array<double, 2>{option_.fix_weitht, option_.fix_weitht}),
-        nullptr, pose.data());
+        nullptr, fix_local_to_map_arry.first.data(),
+        fix_local_to_map_arry.second.data(),
+        slide_widons_data.traslation.data(), slide_widons_data.rotation.data());
   }
-  if (data_.size() >= 4) {
-    data_.pop_front();
+  if (slide_windows_pose_.size() >= 4) {
+    slide_windows_pose_.pop_front();
   }
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = false;
@@ -133,10 +227,12 @@ transform::Rigid3d LocalPoseFusion::CeresUpdata(
   options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
-  pose_gps_to_local_ =
-      transform::Rigid2d(Eigen::Vector2d(pose[0], pose[1]), pose[2]);
+  pose_gps_to_local_ = ArrayToRigid(fix_local_to_map_arry);
+  auto const pose_optimazation =
+      ArrayToRigid({slide_windows_pose_.back().traslation,
+                    slide_windows_pose_.back().rotation});
   LOG(INFO) << pose_gps_to_local_;
-  return transform::Embed3D(pose_gps_to_local_) * pose_expect;
+  return (pose_gps_to_local_)*pose_optimazation;
 }
 transform::Rigid3d
 LocalPoseFusion::UpdataPose(const transform::Rigid3d pose_expect,
@@ -190,8 +286,8 @@ std::unique_ptr<transform::Rigid3d> LocalPoseFusion::AddFixedFramePoseData(
     extrapolator_pub_ =
         std::make_unique<PoseExtrapolator>(common::FromSeconds(0.001), 10.);
   }
-  extrapolator_pub_->AddPose(fix_data.time, pose_expect);
-  extrapolator_->AddPose(fix_data.time, pose_expect);
+  extrapolator_pub_->AddPose(fix_data.time,pose_update);
+  extrapolator_->AddPose(fix_data.time,pose_update);
   return std::make_unique<transform::Rigid3d>();
 }
 void LocalPoseFusion::AddImuData(const sensor::ImuData &imu_data) {

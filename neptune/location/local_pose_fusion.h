@@ -19,12 +19,6 @@ public:
   transform::Rigid3d ExtrapolatePose(common::Time time) override;
   void AddEncoderData(const sensor::EncoderData &encoder_data) override {}
  private:
-  struct LocalData {
-    transform::Rigid3d local_data;
-    sensor::FixedFramePoseData fix_data;
-  };
-
-private:
   const bool pure_local_pose = false;
   transform::Rigid3d UpdataPose(const transform::Rigid3d pose_expect,
                                 const sensor::FixedFramePoseData &fix_data);
@@ -37,8 +31,19 @@ private:
       Eigen::Matrix<double, 9, 9>::Identity() * 100;
   std::pair<common::Time, transform::Rigid3d> pose_;
   transform::Rigid3d last_extrapolator_pose_;
-  transform::Rigid2d pose_gps_to_local_;
-  std::deque<LocalData> data_;
+  transform::Rigid3d pose_gps_to_local_;
+  struct LocalData {
+    transform::Rigid3d local_data;
+    sensor::FixedFramePoseData fix_data;
+  };
+
+  struct CeresPose {
+    std::array<double, 3> traslation;
+    std::array<double, 4> rotation;
+    LocalData local_data_;
+  };
+  // std::deque<LocalData> data_;
+  std::deque<CeresPose> slide_windows_pose_;
 };
 class LocalPoseFusionWithEskf : public FustionInterface {
 public:
