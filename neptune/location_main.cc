@@ -121,7 +121,7 @@ void Run(const std::string &inputbag_name) {
   for (auto view_iterator = view.begin(); view_iterator != view.end();
        view_iterator++) {
     rosbag::MessageInstance msg = *view_iterator;
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
     if (msg.isType<nav_msgs::Odometry>()) {
       // if (msg.getTopic() == odom_topic) {
       const nav_msgs::Odometry &odom = *msg.instantiate<nav_msgs::Odometry>();
@@ -148,7 +148,7 @@ void Run(const std::string &inputbag_name) {
                           imu.angular_velocity.z} +
               options.rigid_param.imu_instrinsci.bg});
       auto pose = pose_extraplotor->ExtrapolatePose(FromRos(imu.header.stamp));
-      LOG(INFO) << pose;
+      // LOG(INFO) << pose;
       PubFusionData(pose);
     }
     if (msg.isType<sensor_msgs::NavSatFix>()) {
@@ -163,24 +163,26 @@ void Run(const std::string &inputbag_name) {
       //     Eigen::Matrix3d>(gps.position_covariance.data())};
       //  pose_extraplotor->AddFixedFramePoseData(fix_data);
 
-<<<<<<< HEAD
-      if (ecef_to_local_frame == nullptr) {
-        ecef_to_local_frame = std::make_unique<Eigen::Affine3d>(
-            ComputeLocalFrameFromLatLong(gps.latitude, gps.longitude));
-      }
-      Eigen::Vector3d lat_pose =
-          *ecef_to_local_frame *
-          LatLongAltToEcef(gps.latitude, gps.longitude, gps.altitude);
-      lat_pose.z() = 0;
-      sensor::FixedFramePoseData fix_data{
-          FromRos(gps.header.stamp), transform::Rigid3d::Translation(lat_pose),
-          Eigen::Map<const Eigen::Matrix3d>(gps.position_covariance.data())};
-      LOG(INFO) << lat_pose;
-      pose_extraplotor->AddFixedFramePoseData(fix_data);
-      //   auto pose = pose_extraplotor->ExtrapolatePose(fix_data.time);
-      //   LOG(INFO) << pose;
-      //   PubFusionData(pose);
-=======
+        if (ecef_to_local_frame == nullptr) {
+          ecef_to_local_frame = std::make_unique<Eigen::Affine3d>(
+              ComputeLocalFrameFromLatLong(gps.latitude, gps.longitude));
+        }
+        static int i  =0;
+        
+        Eigen::Vector3d lat_pose =
+            *ecef_to_local_frame *
+            LatLongAltToEcef(gps.latitude, gps.longitude, gps.altitude);
+        lat_pose.z()  = 0;
+        if(i++>10){
+          // lat_pose.x() +=10;
+          i = 0;
+        }
+        sensor::FixedFramePoseData fix_data{
+            FromRos(gps.header.stamp),
+            transform::Rigid3d::Translation(lat_pose),
+            Eigen::Map<const Eigen::Matrix3d>(gps.position_covariance.data())};
+        LOG(INFO)<<lat_pose;
+        pose_extraplotor->AddFixedFramePoseData(fix_data);
 
     if (msg.isType<geometry_msgs::Vector3Stamped>()) {
       const geometry_msgs::Vector3Stamped encoder_msg =

@@ -1,8 +1,7 @@
 #ifndef _LOCAL_POSE_FUSION_H
 #define _LOCAL_POSE_FUSION_H
 #include <memory>
-
-#include "neptune/location/ekf_pose_extrapolator.h"
+#include "neptune/location/motion_filter.h"
 #include "neptune/location/fusion_interface.h"
 #include "neptune/location/pose_extrapolator_interface.h"
 #include "neptune/transform/transform.h"
@@ -43,6 +42,7 @@ public:
     LocalData local_data_;
   };
   // std::deque<LocalData> data_;
+  std::unique_ptr<MotionFilter> motion_filter_;
   std::deque<CeresPose> slide_windows_pose_;
 };
 class LocalPoseFusionWithEskf : public FustionInterface {

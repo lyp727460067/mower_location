@@ -6,7 +6,10 @@
 #include "neptune/location/ekf_pose_extrapolator.h"
 namespace neptune {
 namespace location {
-inline Eigen::Matrix3d SkewSymmetric(const Eigen::Vector3d &w) {
+
+
+
+inline Eigen::Matrix3d SkewSymmetric(const Eigen::Vector3d& w) {
   Eigen::Matrix3d w_hat;
   w_hat(0, 0) = 0;
   w_hat(0, 1) = -w(2);
@@ -102,16 +105,20 @@ static std::array<T, 6> ComputeUnscaledError(
            angle_axis_difference[2]}};
 }
 template <typename T>
-std::array<T, 3> ScaleError(const std::array<T, 3>& error,
+std::array<T, 6> ScaleError(const std::array<T, 6>& error,
                             double translation_weight, double rotation_weight) {
   // clang-format off
   return {{
       error[0] * translation_weight,
       error[1] * translation_weight,
-      error[2] * rotation_weight
+      error[2] * translation_weight,
+      error[3] * rotation_weight,
+      error[4] * rotation_weight,
+      error[5] * rotation_weight
   }};
   // clang-format on
 }
+
 
 class GpsWindCostFunction {
  public:
@@ -124,25 +131,52 @@ class GpsWindCostFunction {
                   const T* const c_j_rotation, const T* const c_j_translation,
                   T* const e) const {
     const std::array<T, 6> error = ScaleError(
-        ComputeUnscaledError(pose_.zbar_ij, c_i_rotation, c_i_translation,
+        ComputeUnscaledError(mearemnt_pose_, c_i_rotation, c_i_translation,
                              c_j_rotation, c_j_translation),
         weigth_[0], weigth_[1]);
     std::copy(std::begin(error), std::end(error), e);
     return true;
   }
   static ceres::CostFunction* CreateAutoDiffCostFunction(
-      const const transform::Rigid3d& pose,
-      const std::array<double, 2>& weitht) {
-    return new ceres::AutoDiffCostFunction<
-        GpsWindCostFunction, 6 /* residuals */, 4 /* rotation variables */,
-        3 /* translation variables */, 4 /* rotation variables */,
-        3 /* translation variables */>(new GpsWindCostFunction(pose, weitht));
+      const transform::Rigid3d& pose, const std::array<double, 2>& weitht) {
+    return new ceres::AutoDiffCostFunction<GpsWindCostFunction, 6, 4, 3, 4, 3>(
+        new GpsWindCostFunction(pose, weitht));
   }
 
  private:
   const transform::Rigid3d mearemnt_pose_;
   const std::array<double, 2> weigth_;
 };
+class Gps2dWindCostFunction {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  Gps2dWindCostFunction(const transform::Rigid3d& pose,
+                      const std::array<double, 2>& weitht)
+      : mearemnt_pose_(pose), weigth_(weitht) {}
+  template <typename T>
+  bool operator()(const T* const c_i_angle, const T* const c_i_translation,
+                  const T* const c_j_rotation, const T* const c_j_translation,
+                  T* const e) const {
+    std::array<T, 4> c_i_rotation{
+        {cos(c_i_angle[0] * T(0.5)), T(0), T(0), sin(c_i_angle[0] *T(0.5))}};
+    const std::array<T, 6> error = ScaleError(
+        ComputeUnscaledError(mearemnt_pose_, c_i_rotation.data(), c_i_translation,
+                             c_j_rotation, c_j_translation),
+        weigth_[0], weigth_[1]);
+    std::copy(std::begin(error), std::end(error), e);
+    return true;
+  }
+  static ceres::CostFunction* CreateAutoDiffCostFunction(
+      const transform::Rigid3d& pose, const std::array<double, 2>& weitht) {
+    return new ceres::AutoDiffCostFunction<Gps2dWindCostFunction, 6, 1, 3, 4, 3>(
+        new Gps2dWindCostFunction(pose, weitht));
+  }
+
+ private:
+  const transform::Rigid3d mearemnt_pose_;
+  const std::array<double, 2> weigth_;
+};
+
 
 Eigen::Matrix<double, 9, 9> Fx(const Eigen::Quaterniond& q,
                                const transform::Rigid3d& delta_pose) {
@@ -170,12 +204,15 @@ const Eigen::Matrix<double, 9, 9> PoseExtrapolatorVari() {
   return noise.asDiagonal();
 }
 LocalPoseFusion::LocalPoseFusion(const LocalPoseFusionOption& option)
-    : option_(option) {}
+    : option_(option) {
+  motion_filter_ =
+      std::make_unique<MotionFilter>(MotionFilterOptions{100, 0.1, 3.1415});
+}
 std::pair<std::array<double, 3>, std::array<double, 4>> ToCeresPose(
     const transform::Rigid3d& pose) {
   return {{
-              {pose.translation().x(), pose.translation().x(),
-               pose.translation().x()},
+              {pose.translation().x(), pose.translation().y(),
+               pose.translation().z()},
           },
           {
               {pose.rotation().w(), pose.rotation().x(), pose.rotation().y(),
@@ -194,12 +231,14 @@ transform::Rigid3d LocalPoseFusion::CeresUpdata(
     const transform::Rigid3d pose_expect,
     const sensor::FixedFramePoseData& fix_data) {
   const auto ceres_pose = ToCeresPose(pose_expect);
-  slide_windows_pose_.push_back(
-      {ceres_pose.first, ceres_pose.second, {pose_expect, fix_data}});
-  if (slide_windows_pose_.size() == 1) {
+  if (slide_windows_pose_.size() < 2) {
+    slide_windows_pose_.push_back(
+        {ceres_pose.first, ceres_pose.second, {pose_expect, fix_data}});
     return transform::Rigid3d::Identity();
   }
-
+  slide_windows_pose_.push_back({slide_windows_pose_.back().traslation,
+                                 slide_windows_pose_.back().rotation,
+                                 {pose_expect, fix_data}});
   ceres::LocalParameterization* quaternion_local =
       new ceres::EigenQuaternionParameterization;
   ceres::Problem problem;
@@ -208,52 +247,87 @@ transform::Rigid3d LocalPoseFusion::CeresUpdata(
       Eigen::AngleAxisd(transform::GetYaw(pose_gps_to_local_.rotation()),
                         Eigen::Vector3d::UnitZ()));
   auto fix_local_to_map_arry = ToCeresPose(fix_local_to_map_);
-  //初值应该给插值进去
-  for (auto slide_widons_data : slide_windows_pose_) {
+  double fix_local_to_map_arry_angle =
+      transform::GetYaw(pose_gps_to_local_.rotation());
+  for (auto& slide_widons_data : slide_windows_pose_) {
+    problem.AddResidualBlock(
+        Gps2dWindCostFunction::CreateAutoDiffCostFunction(
+            slide_widons_data.local_data_.fix_data.pose,
+            std::array<double, 2>{option_.fix_weitht_traslation,
+                                  option_.fix_weitht_rotation}),
+        new ceres::HuberLoss(0.01), &fix_local_to_map_arry_angle,
+        fix_local_to_map_arry.first.data(), slide_widons_data.rotation.data(),
+        slide_widons_data.traslation.data());
+    // problem.SetParameterization(fix_local_to_map_arry.second.data(),
+    //                             quaternion_local);
+    problem.SetParameterization(slide_widons_data.rotation.data(),
+                                quaternion_local);
+  }
+
+  // problem.SetParameterUpperBound(fix_local_to_map_arry.second.data(), 1, 0.0);
+  // problem.SetParameterUpperBound(fix_local_to_map_arry.second.data(), 2, 0.0);
+  std::array<double, 3> traslation{0, 0, 0};
+  std::array<double, 4> rotation{1, 0, 0, 0};
+  for (int i = 0; i < slide_windows_pose_.size(); i++) {
     problem.AddResidualBlock(
         GpsWindCostFunction::CreateAutoDiffCostFunction(
-            slide_widons_data.local_data_.fix_data.pose,
-            std::array<double, 2>{option_.fix_weitht, option_.fix_weitht}),
-        nullptr, fix_local_to_map_arry.first.data(),
-        fix_local_to_map_arry.second.data(),
-        slide_widons_data.traslation.data(), slide_widons_data.rotation.data());
+            slide_windows_pose_[i].local_data_.local_data,
+            {option_.extraplaton_weitht, option_.extraplaton_weitht}),
+        nullptr, rotation.data(), traslation.data(),
+        slide_windows_pose_[i].rotation.data(),
+        slide_windows_pose_[i].traslation.data());
   }
-  if (slide_windows_pose_.size() >= 4) {
-    slide_windows_pose_.pop_front();
-  }
+  problem.SetParameterBlockConstant(traslation.data());
+  problem.SetParameterBlockConstant(rotation.data());
+  // for (int i = 0; i < slide_windows_pose_.size(); i++) {
+  //   problem.AddResidualBlock(
+  //       GpsWindCostFunction::CreateAutoDiffCostFunction(
+  //           slide_windows_pose_[i - 1].local_data_.local_data.inverse() *
+  //               slide_windows_pose_[i].local_data_.local_data,
+  //           {option_.extraplaton_weitht, option_.extraplaton_weitht}),
+  //       nullptr, slide_windows_pose_[i - 1].rotation.data(),
+  //       slide_windows_pose_[i - 1].traslation.data(),
+  //       slide_windows_pose_[i ].rotation.data(),
+  //       slide_windows_pose_[i ].traslation.data());
+  // }
+  
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = false;
   options.max_num_iterations = 20;
   options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
-  pose_gps_to_local_ = ArrayToRigid(fix_local_to_map_arry);
+  auto pose_gps_to_local_temp = ArrayToRigid(fix_local_to_map_arry);
+  pose_gps_to_local_ =
+      transform::Rigid3d(pose_gps_to_local_temp.translation(),
+                         Eigen::AngleAxisd((fix_local_to_map_arry_angle),
+                                           Eigen::Vector3d::UnitZ()));
   auto const pose_optimazation =
       ArrayToRigid({slide_windows_pose_.back().traslation,
                     slide_windows_pose_.back().rotation});
-  LOG(INFO) << pose_gps_to_local_;
-  return (pose_gps_to_local_)*pose_optimazation;
+  if (slide_windows_pose_.size() >= option_.slide_windows_num) {
+    slide_windows_pose_.pop_front();
+  }
+  LOG(INFO)<<pose_gps_to_local_;
+  LOG(INFO)<<pose_optimazation;
+  return  pose_optimazation;
 }
 transform::Rigid3d
 LocalPoseFusion::UpdataPose(const transform::Rigid3d pose_expect,
                             const sensor::FixedFramePoseData &fix_data) {
   const Eigen::Matrix3d gps_conv = Eigen::Matrix3d::Identity() * 0.1;
   const auto delta_pose = last_extrapolator_pose_.inverse() * pose_expect;
-  LOG(INFO) << delta_pose;
-  auto &P = conv_;
-  auto const &F = Fx(pose_expect.rotation(), delta_pose);
+  auto& P = conv_;
+  auto const& F = Fx(pose_expect.rotation(), delta_pose);
   P = F * P * F.transpose() + PoseExtrapolatorVari();
 
   const auto &H = Hx();
   const Eigen::MatrixXd K =
       P * H.transpose() * (H * P * H.transpose() + gps_conv).inverse();
 
-  LOG(INFO) << K;
   Eigen::Vector3d residual =
       (fix_data.pose.translation() - pose_expect.translation());
-  LOG(INFO) << residual;
   const Eigen::VectorXd delta_x = K * residual;
-  LOG(INFO) << delta_x;
   const Eigen::MatrixXd I_KH = Eigen::Matrix<double, 9, 9>::Identity() - K * H;
   conv_ = I_KH * P * I_KH.transpose() + K * gps_conv * K.transpose();
   const Eigen::Vector3d detata_rotation_x = delta_x.tail(3);
@@ -280,7 +354,11 @@ std::unique_ptr<transform::Rigid3d> LocalPoseFusion::AddFixedFramePoseData(
   if (option_.fustion_type == 0) {
     pose_update = UpdataPose(pose_expect, fix_data);
   } else if (option_.fustion_type == 1) {
-    pose_update = CeresUpdata(pose_expect, fix_data);
+    if (motion_filter_->IsSimilar(fix_data.time, pose_expect)) {
+      pose_update = pose_expect;
+    } else {
+      pose_update = CeresUpdata(pose_expect, fix_data);
+    }
   }
   if (extrapolator_pub_ == nullptr) {
     extrapolator_pub_ =
@@ -290,9 +368,7 @@ std::unique_ptr<transform::Rigid3d> LocalPoseFusion::AddFixedFramePoseData(
   extrapolator_->AddPose(fix_data.time,pose_update);
   return std::make_unique<transform::Rigid3d>();
 }
-void LocalPoseFusion::AddImuData(const sensor::ImuData &imu_data) {
-  // LOG(INFO)<<imu_data.angular_velocity.transpose();
-  // LOG(INFO)<<imu_data.linear_acceleration.transpose();
+void LocalPoseFusion::AddImuData(const sensor::ImuData& imu_data) {
   if (extrapolator_ != nullptr) {
     extrapolator_->AddImuData(imu_data);
     return;
@@ -302,7 +378,8 @@ void LocalPoseFusion::AddImuData(const sensor::ImuData &imu_data) {
 }
 transform::Rigid3d LocalPoseFusion::ExtrapolatePose(common::Time time) {
   if (extrapolator_pub_ != nullptr) {
-    return transform::Embed3D(pose_gps_to_local_) *
+    // LOG(INFO)<<time;
+    return (pose_gps_to_local_.inverse()) *
            extrapolator_->ExtrapolatePose(time);
   }
   return transform::Rigid3d::Identity();

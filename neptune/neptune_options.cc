@@ -70,8 +70,11 @@ NeptuneOptions CreateNodeOptions(
   auto local_pose_option = fusion_optoin->GetDictionary("local_pose_option");
   options.fustion_options.local_pose_option = {
       local_pose_option->GetInt("fustion_type"),
-      local_pose_option->GetDouble("fix_weitht"),
-      local_pose_option->GetDouble("extraplaton_weitht")};
+      local_pose_option->GetDouble("fix_weitht_traslation"),
+      local_pose_option->GetDouble("fix_weitht_rotation"),
+      local_pose_option->GetDouble("extraplaton_weitht"),
+      local_pose_option->GetInt("slide_windows_num"),
+      };
   auto imu_to_gps = sensor_extrinsic_options->GetDictionary("imu_to_gps");
   auto imu_to_odom = sensor_extrinsic_options->GetDictionary("imu_to_odom");
   auto body_to_imu = sensor_extrinsic_options->GetDictionary("body_to_imu");

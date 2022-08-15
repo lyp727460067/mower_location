@@ -10,8 +10,10 @@ namespace location {
 
 struct LocalPoseFusionOption {
   int fustion_type;
-  double fix_weitht;
+  double fix_weitht_traslation;
+  double fix_weitht_rotation;
   double extraplaton_weitht;
+  int slide_windows_num;
 };
 
 struct FusionOption {
