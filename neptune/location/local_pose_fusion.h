@@ -10,7 +10,7 @@ namespace location {
 
 class LocalPoseFusion : public FustionInterface {
 public:
-  LocalPoseFusion(const LocalPoseFusionOption &option) : option_(option) {}
+  LocalPoseFusion(const LocalPoseFusionOption &option);
   std::unique_ptr<transform::Rigid3d>
   AddFixedFramePoseData(const sensor::FixedFramePoseData &fix_data) override;
   void AddImuData(const sensor::ImuData &imu_data) override;

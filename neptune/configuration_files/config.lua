@@ -46,8 +46,10 @@ neptune = {
         location_use_type = 2,
         local_pose_option = {
             fustion_type = 1,
-            fix_weitht = 0.5,
-            extraplaton_weitht = 1
+            fix_weitht_traslation= 0.1,
+            fix_weitht_rotation  = 0;
+            extraplaton_weitht = 1,
+            slide_windows_num  =20,
         }
     },
     sensor_extrinsic = {

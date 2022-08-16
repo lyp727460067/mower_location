@@ -138,7 +138,7 @@ void Run(const std::string &inputbag_name) {
       // }
     }
     if (msg.isType<sensor_msgs::Imu>()) {
-      const sensor_msgs::Imu& imu = *msg.instantiate<sensor_msgs::Imu>();
+      const sensor_msgs::Imu &imu = *msg.instantiate<sensor_msgs::Imu>();
       pose_extraplotor->AddImuData(sensor::ImuData{
           FromRos(imu.header.stamp),
           Eigen::Vector3d{imu.linear_acceleration.x, imu.linear_acceleration.y,
@@ -163,27 +163,26 @@ void Run(const std::string &inputbag_name) {
       //     Eigen::Matrix3d>(gps.position_covariance.data())};
       //  pose_extraplotor->AddFixedFramePoseData(fix_data);
 
-        if (ecef_to_local_frame == nullptr) {
-          ecef_to_local_frame = std::make_unique<Eigen::Affine3d>(
-              ComputeLocalFrameFromLatLong(gps.latitude, gps.longitude));
-        }
-        static int i  =0;
-        
-        Eigen::Vector3d lat_pose =
-            *ecef_to_local_frame *
-            LatLongAltToEcef(gps.latitude, gps.longitude, gps.altitude);
-        lat_pose.z()  = 0;
-        if(i++>10){
-          // lat_pose.x() +=10;
-          i = 0;
-        }
-        sensor::FixedFramePoseData fix_data{
-            FromRos(gps.header.stamp),
-            transform::Rigid3d::Translation(lat_pose),
-            Eigen::Map<const Eigen::Matrix3d>(gps.position_covariance.data())};
-        LOG(INFO)<<lat_pose;
-        pose_extraplotor->AddFixedFramePoseData(fix_data);
+      if (ecef_to_local_frame == nullptr) {
+        ecef_to_local_frame = std::make_unique<Eigen::Affine3d>(
+            ComputeLocalFrameFromLatLong(gps.latitude, gps.longitude));
+      }
+      static int i = 0;
 
+      Eigen::Vector3d lat_pose =
+          *ecef_to_local_frame *
+          LatLongAltToEcef(gps.latitude, gps.longitude, gps.altitude);
+      lat_pose.z() = 0;
+      if (i++ > 10) {
+        // lat_pose.x() +=10;
+        i = 0;
+      }
+      sensor::FixedFramePoseData fix_data{
+          FromRos(gps.header.stamp), transform::Rigid3d::Translation(lat_pose),
+          Eigen::Map<const Eigen::Matrix3d>(gps.position_covariance.data())};
+      LOG(INFO) << lat_pose;
+      pose_extraplotor->AddFixedFramePoseData(fix_data);
+    }
     if (msg.isType<geometry_msgs::Vector3Stamped>()) {
       const geometry_msgs::Vector3Stamped encoder_msg =
           *msg.instantiate<geometry_msgs::Vector3Stamped>();
@@ -197,51 +196,51 @@ void Run(const std::string &inputbag_name) {
     // if (cnt > 500) {
     //   break;
     // }
-  };
-int main(int argc, char **argv) {
-
-  ros::init(argc, argv, "location_main");
-
-  google::InitGoogleLogging("location_main");
-  //   google::SetLogDestination(google::INFO,
-  //   "/tmp/mower_localization/log/");
-  FLAGS_stderrthreshold = google::INFO;
-  FLAGS_colorlogtostderr = true;
-  LOG(INFO) << "start fusion";
-  ros::NodeHandle nh;
-  std::string bag_file(argv[1]);
-  path_publisher = nh.advertise<nav_msgs::Path>("pose_path", 1);
-  tf_broadcaster = new tf::TransformBroadcaster();
-  options =
-      neptune::LodeOptions("/home/cl/mower/mower_localization/src/ros_wrapper/"
-                           "src/mower_location/neptune/configuration_files",
-                           "config.lua");
-  // pose_extraplotor = new
-  // PoseExtrapolatorEkf(PoseExtrapolatorEkfOption{{}});
-
-  FusionOption fusion_opt;
-  fusion_opt.use_fustion_type = options.fustion_options.location_use_type;
-  fusion_opt.local_pose_option = options.fustion_options.local_pose_option;
-  fusion_opt.ekf_option.ekf_option.imu_to_gps =
-      options.rigid_param.sensor_extrinsic.imu_to_gps;
-  fusion_opt.ekf_option.ekf_option.imu_to_odom =
-      options.rigid_param.sensor_extrinsic.imu_to_odom;
-  fusion_opt.ekf_option.ekf_option.body_to_imu =
-      options.rigid_param.sensor_extrinsic.body_to_imu;
-  fusion_opt.ekf_option.kinamics_option.b =
-      options.rigid_param.kinamics_params.b;
-  fusion_opt.ekf_option.kinamics_option.noise_v =
-      options.rigid_param.kinamics_params.nv;
-  fusion_opt.ekf_option.kinamics_option.noise_w =
-      options.rigid_param.kinamics_params.nw;
-  fusion_opt.ekf_option.kinamics_option.r =
-      options.rigid_param.kinamics_params.r;
-
-  pose_extraplotor = FustionInterface::CreatFusion(fusion_opt);
-
-  LOG(INFO) << "start fusion";
-  ros::Rate rate(100);
-  Run(bag_file);
-  ros::shutdown();
-  return 0;
+  }
 }
+  int main(int argc, char **argv) {
+    ros::init(argc, argv, "location_main");
+
+    google::InitGoogleLogging("location_main");
+    //   google::SetLogDestination(google::INFO,
+    //   "/tmp/mower_localization/log/");
+    FLAGS_stderrthreshold = google::INFO;
+    FLAGS_colorlogtostderr = true;
+    LOG(INFO) << "start fusion";
+    ros::NodeHandle nh;
+    std::string bag_file(argv[1]);
+    path_publisher = nh.advertise<nav_msgs::Path>("pose_path", 1);
+    tf_broadcaster = new tf::TransformBroadcaster();
+    options = neptune::LodeOptions(
+        "/home/lyp/project/mower/src/mower_location/neptune/"
+        "configuration_files",
+        "config.lua");
+    // pose_extraplotor = new
+    // PoseExtrapolatorEkf(PoseExtrapolatorEkfOption{{}});
+
+    FusionOption fusion_opt;
+    fusion_opt.use_fustion_type = options.fustion_options.location_use_type;
+    fusion_opt.local_pose_option = options.fustion_options.local_pose_option;
+    fusion_opt.ekf_option.ekf_option.imu_to_gps =
+        options.rigid_param.sensor_extrinsic.imu_to_gps;
+    fusion_opt.ekf_option.ekf_option.imu_to_odom =
+        options.rigid_param.sensor_extrinsic.imu_to_odom;
+    fusion_opt.ekf_option.ekf_option.body_to_imu =
+        options.rigid_param.sensor_extrinsic.body_to_imu;
+    fusion_opt.ekf_option.kinamics_option.b =
+        options.rigid_param.kinamics_params.b;
+    fusion_opt.ekf_option.kinamics_option.noise_v =
+        options.rigid_param.kinamics_params.nv;
+    fusion_opt.ekf_option.kinamics_option.noise_w =
+        options.rigid_param.kinamics_params.nw;
+    fusion_opt.ekf_option.kinamics_option.r =
+        options.rigid_param.kinamics_params.r;
+
+    pose_extraplotor = FustionInterface::CreatFusion(fusion_opt);
+
+    LOG(INFO) << "start fusion";
+    ros::Rate rate(100);
+    Run(bag_file);
+    ros::shutdown();
+    return 0;
+  }
