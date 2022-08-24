@@ -364,13 +364,17 @@ std::unique_ptr<transform::Rigid3d> LocalPoseFusion::AddFixedFramePoseData(
     extrapolator_pub_ =
         std::make_unique<PoseExtrapolator>(common::FromSeconds(0.001), 10.);
   }
-  extrapolator_pub_->AddPose(fix_data.time,pose_update);
-  extrapolator_->AddPose(fix_data.time,pose_update);
+  extrapolator_pub_->AddPose(fix_data.time,
+                             pose_gps_to_local_.inverse() * pose_update);
+  extrapolator_->AddPose(fix_data.time,pose_expect);
   return std::make_unique<transform::Rigid3d>();
 }
 void LocalPoseFusion::AddImuData(const sensor::ImuData& imu_data) {
   if (extrapolator_ != nullptr) {
     extrapolator_->AddImuData(imu_data);
+    if (extrapolator_pub_ != nullptr) {
+      extrapolator_pub_->AddImuData(imu_data);
+    }
     return;
   }
   extrapolator_ =
@@ -378,9 +382,7 @@ void LocalPoseFusion::AddImuData(const sensor::ImuData& imu_data) {
 }
 transform::Rigid3d LocalPoseFusion::ExtrapolatePose(common::Time time) {
   if (extrapolator_pub_ != nullptr) {
-    // LOG(INFO)<<time;
-    return (pose_gps_to_local_.inverse()) *
-           extrapolator_->ExtrapolatePose(time);
+   return  extrapolator_pub_->ExtrapolatePose(time);
   }
   return transform::Rigid3d::Identity();
 }
@@ -392,6 +394,9 @@ void LocalPoseFusion::AddOdometryData(
     return;
   }
   extrapolator_->AddOdometryData(odometry_data);
+  if (extrapolator_pub_ != nullptr) {
+    extrapolator_pub_->AddOdometryData(odometry_data);
+  }
 }
 
 LocalPoseFusionWithEskf::LocalPoseFusionWithEskf(
