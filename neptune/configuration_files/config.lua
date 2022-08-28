@@ -43,7 +43,7 @@ neptune = {
         tgyx = 0.00243333 -- t21
     },
     fusion_option = {
-        location_use_type = 2,
+        location_use_type = 0,
         local_pose_option = {
             fustion_type = 1,
             fix_weitht_traslation= 0.1,

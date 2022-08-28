@@ -25,13 +25,19 @@
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_listener.h>
 #include <thread>
+
+using namespace neptune;
+using namespace location;
+namespace{
+
 std::string odom_topic;
 std::string fix_topic;
 std::string imu_topic;
-using namespace neptune;
-using namespace location;
-// PoseExtrapolatorInterface* pose_extraplotor;
 NeptuneOptions options;
+}
+
+
+// PoseExtrapolatorInterface* pose_extraplotor;
 constexpr double DegToRad(double deg) { return M_PI * deg / 180.; }
 Eigen::Vector3d LatLongAltToEcef(const double latitude, const double longitude,
                                  const double altitude) {
@@ -112,135 +118,78 @@ void PubFusionData(const transform::Rigid3d &pose) {
   path.poses.push_back(this_pose_stamped);
   path_publisher.publish(path);
 }
-void Run(const std::string &inputbag_name) {
-  int cnt = 0;
-  rosbag::Bag in_bag;
-  in_bag.open(inputbag_name, rosbag::bagmode::Read);
-  rosbag::View view(in_bag);
-  rosbag::View::const_iterator view_iterator = view.begin();
-  for (auto view_iterator = view.begin(); view_iterator != view.end();
-       view_iterator++) {
-    rosbag::MessageInstance msg = *view_iterator;
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    if (msg.isType<nav_msgs::Odometry>()) {
-      // if (msg.getTopic() == odom_topic) {
-      const nav_msgs::Odometry &odom = *msg.instantiate<nav_msgs::Odometry>();
-      const Eigen::Vector3d translation{odom.pose.pose.position.x,
-                                        odom.pose.pose.position.y,
-                                        odom.pose.pose.position.z};
-      // LOG(INFO)<<translation;
-      const Eigen::Quaterniond rotation{
-          odom.pose.pose.orientation.w, odom.pose.pose.orientation.x,
-          odom.pose.pose.orientation.y, odom.pose.pose.orientation.x};
-      pose_extraplotor->AddOdometryData(
-          {FromRos(odom.header.stamp),
-           transform::Rigid3d(translation, rotation)});
-      // }
-    }
-    if (msg.isType<sensor_msgs::Imu>()) {
-      const sensor_msgs::Imu &imu = *msg.instantiate<sensor_msgs::Imu>();
-      pose_extraplotor->AddImuData(sensor::ImuData{
-          FromRos(imu.header.stamp),
-          Eigen::Vector3d{imu.linear_acceleration.x, imu.linear_acceleration.y,
-                          imu.linear_acceleration.z} +
-              options.rigid_param.imu_instrinsci.ba,
-          Eigen::Vector3d{imu.angular_velocity.x, imu.angular_velocity.y,
-                          imu.angular_velocity.z} +
-              options.rigid_param.imu_instrinsci.bg});
-      auto pose = pose_extraplotor->ExtrapolatePose(FromRos(imu.header.stamp));
-      // LOG(INFO) << pose;
-      PubFusionData(pose);
-    }
-    if (msg.isType<sensor_msgs::NavSatFix>()) {
-      const sensor_msgs::NavSatFix &gps =
-          *msg.instantiate<sensor_msgs::NavSatFix>();
-      // if (gps.status.status == 2) {
-      // sensor::FixedFramePoseData fix_data{
-      //     FromRos(gps.header.stamp),
-      //     transform::Rigid3d::Translation(
-      //         {gps.latitude, gps.longitude, gps.altitude}),
-      //     Eigen::Map<const
-      //     Eigen::Matrix3d>(gps.position_covariance.data())};
-      //  pose_extraplotor->AddFixedFramePoseData(fix_data);
 
-      if (ecef_to_local_frame == nullptr) {
-        ecef_to_local_frame = std::make_unique<Eigen::Affine3d>(
-            ComputeLocalFrameFromLatLong(gps.latitude, gps.longitude));
-      }
-      static int i = 0;
-
-      Eigen::Vector3d lat_pose =
-          *ecef_to_local_frame *
-          LatLongAltToEcef(gps.latitude, gps.longitude, gps.altitude);
-      lat_pose.z() = 0;
-      if (i++ > 10) {
-        // lat_pose.x() +=10;
-        i = 0;
-      }
-      sensor::FixedFramePoseData fix_data{
-          FromRos(gps.header.stamp), transform::Rigid3d::Translation(lat_pose),
-          Eigen::Map<const Eigen::Matrix3d>(gps.position_covariance.data())};
-      LOG(INFO) << lat_pose;
-      pose_extraplotor->AddFixedFramePoseData(fix_data);
-    }
-    if (msg.isType<geometry_msgs::Vector3Stamped>()) {
-      const geometry_msgs::Vector3Stamped encoder_msg =
-          *msg.instantiate<geometry_msgs::Vector3Stamped>();
-      sensor::EncoderData encoder_data;
-      encoder_data.time = FromRos(encoder_msg.header.stamp);
-      encoder_data.encoder.x() = encoder_msg.vector.x;
-      encoder_data.encoder.y() = encoder_msg.vector.y;
-      pose_extraplotor->AddEncoderData(encoder_data);
-    }
-    cnt++;
-    // if (cnt > 500) {
-    //   break;
-    // }
-  }
+void HandleImuMessage(const sensor_msgs::Imu::ConstPtr &msg1) {
+  const sensor_msgs::Imu &imu = *msg1;
+  pose_extraplotor->AddImuData(sensor::ImuData{
+      FromRos(imu.header.stamp),
+      Eigen::Vector3d{imu.linear_acceleration.x, imu.linear_acceleration.y,
+                      imu.linear_acceleration.z} +
+          options.rigid_param.imu_instrinsci.ba,
+      Eigen::Vector3d{imu.angular_velocity.x, imu.angular_velocity.y,
+                      imu.angular_velocity.z} +
+          options.rigid_param.imu_instrinsci.bg});
+  auto pose = pose_extraplotor->ExtrapolatePose(FromRos(imu.header.stamp));
+  PubFusionData(pose);
 }
-  int main(int argc, char **argv) {
-    ros::init(argc, argv, "location_main");
 
-    google::InitGoogleLogging("location_main");
-    //   google::SetLogDestination(google::INFO,
-    //   "/tmp/mower_localization/log/");
-    FLAGS_stderrthreshold = google::INFO;
-    FLAGS_colorlogtostderr = true;
-    LOG(INFO) << "start fusion";
-    ros::NodeHandle nh;
-    std::string bag_file(argv[1]);
-    path_publisher = nh.advertise<nav_msgs::Path>("pose_path", 1);
-    tf_broadcaster = new tf::TransformBroadcaster();
-    options = neptune::LodeOptions(
-        "/home/lyp/project/mower/src/mower_location/neptune/"
-        "configuration_files",
-        "config.lua");
-    // pose_extraplotor = new
-    // PoseExtrapolatorEkf(PoseExtrapolatorEkfOption{{}});
+void HandleOdometryMessage(const nav_msgs::Odometry::ConstPtr &msg) {
+  const nav_msgs::Odometry &odom = *msg;
+  const Eigen::Vector3d translation{odom.pose.pose.position.x,
+                                    odom.pose.pose.position.y,
+                                    odom.pose.pose.position.z};
+  // LOG(INFO)<<translation;
+  const Eigen::Quaterniond rotation{
+      odom.pose.pose.orientation.w, odom.pose.pose.orientation.x,
+      odom.pose.pose.orientation.y, odom.pose.pose.orientation.x};
+  pose_extraplotor->AddOdometryData(
+      {FromRos(odom.header.stamp), transform::Rigid3d(translation, rotation)});
+}
 
-    FusionOption fusion_opt;
-    fusion_opt.use_fustion_type = options.fustion_options.location_use_type;
-    fusion_opt.local_pose_option = options.fustion_options.local_pose_option;
-    fusion_opt.ekf_option.ekf_option.imu_to_gps =
-        options.rigid_param.sensor_extrinsic.imu_to_gps;
-    fusion_opt.ekf_option.ekf_option.imu_to_odom =
-        options.rigid_param.sensor_extrinsic.imu_to_odom;
-    fusion_opt.ekf_option.ekf_option.body_to_imu =
-        options.rigid_param.sensor_extrinsic.body_to_imu;
-    fusion_opt.ekf_option.kinamics_option.b =
-        options.rigid_param.kinamics_params.b;
-    fusion_opt.ekf_option.kinamics_option.noise_v =
-        options.rigid_param.kinamics_params.nv;
-    fusion_opt.ekf_option.kinamics_option.noise_w =
-        options.rigid_param.kinamics_params.nw;
-    fusion_opt.ekf_option.kinamics_option.r =
-        options.rigid_param.kinamics_params.r;
+int main(int argc, char **argv) {
+  ros::init(argc, argv, "location_main");
 
-    pose_extraplotor = FustionInterface::CreatFusion(fusion_opt);
+  google::InitGoogleLogging("location_main");
+  //   google::SetLogDestination(google::INFO,
+  //   "/tmp/mower_localization/log/");
+  FLAGS_stderrthreshold = google::INFO;
+  FLAGS_colorlogtostderr = true;
+  LOG(INFO) << "start fusion";
+  ros::NodeHandle nh;
+  path_publisher = nh.advertise<nav_msgs::Path>("pose_path", 1);
+  tf_broadcaster = new tf::TransformBroadcaster();
+  options = neptune::LodeOptions(
+      "/home/lyp/project/mower/src/mower_location/neptune/"
+      "configuration_files",
+      "config.lua");
+  // pose_extraplotor = new
+  // PoseExtrapolatorEkf(PoseExtrapolatorEkfOption{{}});
+  ros::Subscriber odom_subscrib =
+      nh.subscribe<nav_msgs::Odometry>("odom", 10, HandleOdometryMessage);
+  ros::Subscriber imu_subscrib =
+      nh.subscribe<sensor_msgs::Imu>("imu", 10, HandleImuMessage);
 
-    LOG(INFO) << "start fusion";
-    ros::Rate rate(100);
-    Run(bag_file);
-    ros::shutdown();
-    return 0;
+  FusionOption fusion_opt;
+  fusion_opt.use_fustion_type = options.fustion_options.location_use_type;
+  fusion_opt.local_pose_option = options.fustion_options.local_pose_option;
+  fusion_opt.ekf_option.ekf_option.imu_to_gps =
+      options.rigid_param.sensor_extrinsic.imu_to_gps;
+  fusion_opt.ekf_option.ekf_option.imu_to_odom =
+      options.rigid_param.sensor_extrinsic.imu_to_odom;
+  fusion_opt.ekf_option.ekf_option.body_to_imu =
+      options.rigid_param.sensor_extrinsic.body_to_imu;
+  fusion_opt.ekf_option.kinamics_option.b =
+      options.rigid_param.kinamics_params.b;
+  fusion_opt.ekf_option.kinamics_option.noise_v =
+      options.rigid_param.kinamics_params.nv;
+  fusion_opt.ekf_option.kinamics_option.noise_w =
+      options.rigid_param.kinamics_params.nw;
+  fusion_opt.ekf_option.kinamics_option.r =
+      options.rigid_param.kinamics_params.r;
+
+  pose_extraplotor = FustionInterface::CreatFusion(fusion_opt);
+  ros::spin();
+  LOG(INFO) << "start fusion";
+  ros::shutdown();
+  return 0;
   }
