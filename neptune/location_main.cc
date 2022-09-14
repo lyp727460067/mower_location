@@ -97,7 +97,7 @@ void PubFusionData(const transform::Rigid3d &pose) {
   tf_trans.child_frame_id = "base_link";
   tf_trans.transform.translation.x = translation.x();
   tf_trans.transform.translation.y = translation.y();
-  tf_trans.transform.translation.z = translation.z();
+  tf_trans.transform.translation.z = 0;//translation.z();
   tf_trans.transform.rotation.x = rotaion.x();
   tf_trans.transform.rotation.y = rotaion.y();
   tf_trans.transform.rotation.z = rotaion.z();
@@ -110,7 +110,7 @@ void PubFusionData(const transform::Rigid3d &pose) {
   this_pose_stamped.pose = geometry_msgs::Pose();
   this_pose_stamped.pose.position.x = translation.x();
   this_pose_stamped.pose.position.y = translation.y();
-  this_pose_stamped.pose.position.z = translation.z();
+  this_pose_stamped.pose.position.z = 0;
   this_pose_stamped.pose.orientation = tf_trans.transform.rotation;
   this_pose_stamped.header.seq = ++index;
   this_pose_stamped.header.stamp = ros::Time::now();
@@ -124,24 +124,25 @@ void HandleImuMessage(const sensor_msgs::Imu::ConstPtr &msg1) {
   pose_extraplotor->AddImuData(sensor::ImuData{
       FromRos(imu.header.stamp),
       Eigen::Vector3d{imu.linear_acceleration.x, imu.linear_acceleration.y,
-                      imu.linear_acceleration.z} +
-          options.rigid_param.imu_instrinsci.ba,
+                      imu.linear_acceleration.z},
       Eigen::Vector3d{imu.angular_velocity.x, imu.angular_velocity.y,
-                      imu.angular_velocity.z} +
-          options.rigid_param.imu_instrinsci.bg});
+                      imu.angular_velocity.z}});
   auto pose = pose_extraplotor->ExtrapolatePose(FromRos(imu.header.stamp));
   PubFusionData(pose);
 }
 
 void HandleOdometryMessage(const nav_msgs::Odometry::ConstPtr &msg) {
   const nav_msgs::Odometry &odom = *msg;
+//   const Eigen::Vector3d translation{odom.pose.pose.position.x,
+//                                     odom.pose.pose.position.y,
+//                                     odom.pose.pose.position.z};
   const Eigen::Vector3d translation{odom.pose.pose.position.x,
                                     odom.pose.pose.position.y,
-                                    odom.pose.pose.position.z};
+                                    0};
   // LOG(INFO)<<translation;
   const Eigen::Quaterniond rotation{
       odom.pose.pose.orientation.w, odom.pose.pose.orientation.x,
-      odom.pose.pose.orientation.y, odom.pose.pose.orientation.x};
+      odom.pose.pose.orientation.y, odom.pose.pose.orientation.z};
   pose_extraplotor->AddOdometryData(
       {FromRos(odom.header.stamp), transform::Rigid3d(translation, rotation)});
 }
@@ -159,7 +160,7 @@ int main(int argc, char **argv) {
   path_publisher = nh.advertise<nav_msgs::Path>("pose_path", 1);
   tf_broadcaster = new tf::TransformBroadcaster();
   options = neptune::LodeOptions(
-      "/home/lyp/project/mower/src/mower_location/neptune/"
+      "/home/lyp/project/catkin_ws/src/mower_location/neptune/"
       "configuration_files",
       "config.lua");
   // pose_extraplotor = new

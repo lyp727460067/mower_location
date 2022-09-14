@@ -2,7 +2,6 @@
 
 #include <algorithm>
 
-#include "absl/memory/memory.h"
 #include "glog/logging.h"
 #include "neptune/transform/transform.h"
 
@@ -42,7 +41,7 @@ void PoseExtrapolator::AddPose(const common::Time time,
       tracker_start = std::min(tracker_start, imu_data_.front().time);
     }
     imu_tracker_ =
-        absl::make_unique<ImuTracker>(gravity_time_constant_, tracker_start);
+        std::make_unique<ImuTracker>(gravity_time_constant_, tracker_start);
   }
   timed_pose_queue_.push_back(TimedPose{time, pose});
   while (timed_pose_queue_.size() > 2 &&
@@ -53,8 +52,8 @@ void PoseExtrapolator::AddPose(const common::Time time,
   AdvanceImuTracker(time, imu_tracker_.get());
   TrimImuData();
   TrimOdometryData();
-  odometry_imu_tracker_ = absl::make_unique<ImuTracker>(*imu_tracker_);
-  extrapolation_imu_tracker_ = absl::make_unique<ImuTracker>(*imu_tracker_);
+  odometry_imu_tracker_ = std::make_unique<ImuTracker>(*imu_tracker_);
+  extrapolation_imu_tracker_ = std::make_unique<ImuTracker>(*imu_tracker_);
 }
 
 void PoseExtrapolator::AddImuData(const sensor::ImuData& imu_data) {
