@@ -358,14 +358,15 @@ std::unique_ptr<transform::Rigid3d> LocalPoseFusion::AddFixedFramePoseData(
       pose_update = pose_expect;
     } else {
       pose_update = CeresUpdata(pose_expect, fix_data);
+      if (extrapolator_pub_ == nullptr) {
+        extrapolator_pub_ =
+            std::make_unique<PoseExtrapolator>(common::FromSeconds(0.001), 10.);
+      }
+      extrapolator_pub_->AddPose(fix_data.time,
+                                 pose_gps_to_local_.inverse() * pose_update);
     }
   }
-  if (extrapolator_pub_ == nullptr) {
-    extrapolator_pub_ =
-        std::make_unique<PoseExtrapolator>(common::FromSeconds(0.001), 10.);
-  }
-  extrapolator_pub_->AddPose(fix_data.time,
-                             pose_gps_to_local_.inverse() * pose_update);
+
   extrapolator_->AddPose(fix_data.time,pose_expect);
   return std::make_unique<transform::Rigid3d>();
 }

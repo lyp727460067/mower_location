@@ -62,11 +62,17 @@ if(NOT ${NOT_BUILD_WITH_ROS})
   target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
     "${catkin_INCLUDE_DIRS}"
   )
-  add_executable(${PROJECT_NAME}_main ${EXECUTABLES})
-  target_link_libraries(${PROJECT_NAME}_main
+  foreach(ABS_FIL ${EXECUTABLES})
+  file(RELATIVE_PATH REL_FIL ${PROJECT_SOURCE_DIR} ${ABS_FIL})
+  get_filename_component(DIR ${REL_FIL} DIRECTORY)
+  get_filename_component(FIL_WE ${REL_FIL} NAME_WE)
+  string(REPLACE "/" "." TARGET_NAME "${DIR}/${FIL_WE}")
+  add_executable(${TARGET_NAME} ${ABS_FIL})
+  target_link_libraries(${TARGET_NAME}
     ${catkin_LIBRARIES}
     ${PROJECT_NAME}
   )
+endforeach()
 endif()
 
 # install(TARGETS ${PROJECT_NAME} DESTINATION lib/locator)
