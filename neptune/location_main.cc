@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
       nh.advertise<visualization_msgs::MarkerArray>("mark_rtk_path", 10);
   tf_broadcaster = new tf::TransformBroadcaster();
   options = neptune::LodeOptions(
-      "/home/lyp/project/catkin_ws/src/mower_location/neptune/"
+      "/home/wheeltec/songlin/src/mower_location/neptune/"
       "configuration_files",
       "config.lua");
   // pose_extraplotor = new

@@ -20,7 +20,6 @@ find_package(Eigen3 REQUIRED)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/Cmake/)
 find_package(Glog REQUIRED)
 find_package(Ceres REQUIRED)
-find_package(GTest REQUIRED)
 find_package(Lua REQUIRED)
 
 file(GLOB_RECURSE ALL_LIBRARY_HDRS "*.h")
