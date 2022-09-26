@@ -43,13 +43,13 @@ neptune = {
         tgyx = 0.00243333 -- t21
     },
     fusion_option = {
-        location_use_type = 0,
+        location_use_type = 2,
         local_pose_option = {
             fustion_type = 1,
-            fix_weitht_traslation= 0.1,
+            fix_weitht_traslation= 10.1,
             fix_weitht_rotation  = 0;
             extraplaton_weitht = 1,
-            slide_windows_num  =20,
+            slide_windows_num  =10,
         }
     },
     sensor_extrinsic = {

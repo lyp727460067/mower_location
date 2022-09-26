@@ -121,7 +121,7 @@ void Run(const std::string &inputbag_name) {
   for (auto view_iterator = view.begin(); view_iterator != view.end();
        view_iterator++) {
     rosbag::MessageInstance msg = *view_iterator;
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    // std::this_thread::sleep_for(std::chrono::milliseconds(1));
     if (msg.isType<nav_msgs::Odometry>()) {
       // if (msg.getTopic() == odom_topic) {
       const nav_msgs::Odometry &odom = *msg.instantiate<nav_msgs::Odometry>();
@@ -141,12 +141,15 @@ void Run(const std::string &inputbag_name) {
       const sensor_msgs::Imu &imu = *msg.instantiate<sensor_msgs::Imu>();
       pose_extraplotor->AddImuData(sensor::ImuData{
           FromRos(imu.header.stamp),
-          Eigen::Vector3d{imu.linear_acceleration.x, imu.linear_acceleration.y,
-                          imu.linear_acceleration.z} +
-              options.rigid_param.imu_instrinsci.ba,
-          Eigen::Vector3d{imu.angular_velocity.x, imu.angular_velocity.y,
-                          imu.angular_velocity.z} +
-              options.rigid_param.imu_instrinsci.bg});
+          // Eigen::Vector3d{imu.linear_acceleration.x,
+          // imu.linear_acceleration.y,
+          //                 imu.linear_acceleration.z},
+          // Eigen::Vector3d{imu.angular_velocity.x, imu.angular_velocity.y,
+          //                 imu.angular_velocity.z}});
+          Eigen::Vector3d{imu.linear_acceleration.z, -imu.linear_acceleration.x,
+                          -imu.linear_acceleration.y},
+          Eigen::Vector3d{imu.angular_velocity.z, -imu.angular_velocity.x,
+                          -imu.angular_velocity.y}});
       auto pose = pose_extraplotor->ExtrapolatePose(FromRos(imu.header.stamp));
       // LOG(INFO) << pose;
       PubFusionData(pose);
@@ -177,7 +180,7 @@ void Run(const std::string &inputbag_name) {
       Eigen::Vector3d lat_pose =
           *ecef_to_local_frame *
           LatLongAltToEcef(gps.latitude, gps.longitude, gps.altitude);
-      lat_pose.z() = 0;
+      // lat_pose.z() = 0;
       if (i++ > 10) {
         // lat_pose.x() +=10;
         i = 0;

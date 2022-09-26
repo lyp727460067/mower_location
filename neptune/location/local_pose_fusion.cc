@@ -105,6 +105,37 @@ static std::array<T, 6> ComputeUnscaledError(
            angle_axis_difference[2]}};
 }
 template <typename T>
+static std::array<T, 6> ComputeUnscaledErrorGps(
+    const transform::Rigid3d& relative_pose, const T* const start_rotation,
+    const T* const start_translation, const T* const end_rotation,
+    const T* const end_translation) {
+  const Eigen::Quaternion<T> R_i_inverse(start_rotation[0], -start_rotation[1],
+                                         -start_rotation[2],
+                                         -start_rotation[3]);
+
+    const Eigen::Matrix<T, 3, 1> delta(
+        end_translation[0] - start_translation[0] + T(-0.22),
+        end_translation[1] - start_translation[1] + T(0.12),
+        end_translation[2] - start_translation[2]);
+    const Eigen::Matrix<T, 3, 1> h_translation = R_i_inverse * delta;
+
+    const Eigen::Quaternion<T> h_rotation_inverse =
+        Eigen::Quaternion<T>(end_rotation[0], -end_rotation[1],
+                             -end_rotation[2], -end_rotation[3]) *
+        Eigen::Quaternion<T>(start_rotation[0], start_rotation[1],
+                             start_rotation[2], start_rotation[3]);
+
+    const Eigen::Matrix<T, 3, 1> angle_axis_difference =
+        transform::RotationQuaternionToAngleAxisVector(
+            h_rotation_inverse * relative_pose.rotation().cast<T>());
+
+    return {{T(relative_pose.translation().x()) - h_translation[0],
+             T(relative_pose.translation().y()) - h_translation[1],
+             T(relative_pose.translation().z()) - h_translation[2],
+             angle_axis_difference[0], angle_axis_difference[1],
+             angle_axis_difference[2]}};
+}
+template <typename T>
 std::array<T, 6> ScaleError(const std::array<T, 6>& error,
                             double translation_weight, double rotation_weight) {
   // clang-format off
@@ -131,7 +162,7 @@ class GpsWindCostFunction {
                   const T* const c_j_rotation, const T* const c_j_translation,
                   T* const e) const {
     const std::array<T, 6> error = ScaleError(
-        ComputeUnscaledError(mearemnt_pose_, c_i_rotation, c_i_translation,
+        ComputeUnscaledErrorGps(mearemnt_pose_, c_i_rotation, c_i_translation,
                              c_j_rotation, c_j_translation),
         weigth_[0], weigth_[1]);
     std::copy(std::begin(error), std::end(error), e);
@@ -159,6 +190,11 @@ class Gps2dWindCostFunction {
                   T* const e) const {
     std::array<T, 4> c_i_rotation{
         {cos(c_i_angle[0] * T(0.5)), T(0), T(0), sin(c_i_angle[0] *T(0.5))}};
+    // Eigen::Map<Eigen::Matrix<T, 2, 2>> extrix_map(c_i_rotation.data());
+    // Eigen::Matrix<T, 2, 1> extric{T(-0.22), T(0.12)};
+    // Eigen::Vector2d mearemnt_translate(mearemnt_pose_.x(), mearemnt_pose_.y());
+
+
     const std::array<T, 6> error = ScaleError(
         ComputeUnscaledError(mearemnt_pose_, c_i_rotation.data(), c_i_translation,
                              c_j_rotation, c_j_translation),
@@ -206,7 +242,7 @@ const Eigen::Matrix<double, 9, 9> PoseExtrapolatorVari() {
 LocalPoseFusion::LocalPoseFusion(const LocalPoseFusionOption& option)
     : option_(option) {
   motion_filter_ =
-      std::make_unique<MotionFilter>(MotionFilterOptions{100, 0.1, 3.1415});
+      std::make_unique<MotionFilter>(MotionFilterOptions{100, 0.1, 1});
 }
 std::pair<std::array<double, 3>, std::array<double, 4>> ToCeresPose(
     const transform::Rigid3d& pose) {
@@ -293,6 +329,8 @@ transform::Rigid3d LocalPoseFusion::CeresUpdata(
   
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = false;
+  options.num_threads  =12;
+
   options.max_num_iterations = 20;
   options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
   ceres::Solver::Summary summary;

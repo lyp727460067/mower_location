@@ -25,7 +25,9 @@
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_listener.h>
 #include <thread>
-
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <random>
 using namespace neptune;
 using namespace location;
 namespace{
@@ -62,8 +64,10 @@ Eigen::Vector3d LatLongAltToEcef(const double latitude, const double longitude,
 
 std::unique_ptr<Eigen::Affine3d> ecef_to_local_frame = nullptr;
 Eigen::Affine3d ComputeLocalFrameFromLatLong(const double latitude,
-                                             const double longitude) {
-  const Eigen::Vector3d translation = LatLongAltToEcef(latitude, longitude, 0.);
+                                             const double longitude,
+                                             const double alt) {
+  const Eigen::Vector3d translation =
+      LatLongAltToEcef(latitude, longitude, alt);
   const Eigen::Quaterniond rotation =
       Eigen::AngleAxisd(DegToRad(latitude - 90.), Eigen::Vector3d::UnitY()) *
       Eigen::AngleAxisd(DegToRad(-longitude), Eigen::Vector3d::UnitZ());
@@ -119,15 +123,97 @@ void PubFusionData(const transform::Rigid3d &pose) {
   path_publisher.publish(path);
 }
 
+
+nav_msgs::Path rtk_path;
+ros::Publisher rtk_path_publisher;
+void PubRtkData(const transform::Rigid3d &pose) {
+  const Eigen::Vector3d &translation = pose.translation();
+  const Eigen::Quaterniond &rotaion = pose.rotation();
+  //
+  geometry_msgs::PoseStamped this_pose_stamped;
+  static int index = 0;
+  path.header.frame_id = "map";
+  this_pose_stamped.pose = geometry_msgs::Pose();
+  this_pose_stamped.pose.position.x = translation.x();
+  this_pose_stamped.pose.position.y = translation.y();
+  this_pose_stamped.pose.position.z = translation.z();
+  this_pose_stamped.pose.orientation.x = rotaion.x();
+  this_pose_stamped.pose.orientation.y = rotaion.y();
+  this_pose_stamped.pose.orientation.z = rotaion.z();
+  this_pose_stamped.pose.orientation.w = rotaion.w();
+  this_pose_stamped.header.seq = ++index;
+  this_pose_stamped.header.stamp = ros::Time::now();
+  this_pose_stamped.header.frame_id = "map";
+  rtk_path.poses.push_back(this_pose_stamped);
+  rtk_path_publisher.publish(path);
+}
+ros::Publisher markpub;
+visualization_msgs::Marker mark;
+void PubRtkDataMark(const transform::Rigid3d &pose) {
+  visualization_msgs::MarkerArray marks;
+  std::default_random_engine e;
+  int mark_id = 0;
+  mark.header.frame_id = "map";
+
+  mark.ns = "rtk_mark";
+  mark.header.stamp = ::ros::Time::now();
+  mark.id = mark_id++;
+  mark.action = visualization_msgs::Marker::ADD;
+  mark.type = visualization_msgs::Marker::POINTS;
+  // mark.type = visualization_msgs::Marker::ARROW;
+  mark.lifetime = ros::Duration(0);
+  mark.scale.x = 0.05;
+  mark.scale.y = 0.05;
+  mark.scale.z = 0.05;
+  std::uniform_real_distribution<float> ran(0, 1);
+  mark.color.r = 1;       // ran(e);//1.0;
+  mark.color.a = 1;       // ran(e);
+  mark.color.g = ran(e);  //(mark_id / sizeofils);
+  mark.color.b = ran(e);  //(sizeofils- mark_id) / sizeofils;
+  // LOG(INFO)<<mark.color.g<<mark.color.b;
+  int cnt = 0;
+  geometry_msgs::Point point;
+  point.x = pose.translation().x();
+  point.y = pose.translation().y();
+  point.z = 0;
+  mark.points.push_back(point);
+  marks.markers.push_back(mark);
+  LOG_EVERY_N(INFO, 10) << "still pub path in:";
+  markpub.publish(marks);
+}
 void HandleImuMessage(const sensor_msgs::Imu::ConstPtr &msg1) {
   const sensor_msgs::Imu &imu = *msg1;
   pose_extraplotor->AddImuData(sensor::ImuData{
       FromRos(imu.header.stamp),
-      Eigen::Vector3d{imu.linear_acceleration.x, imu.linear_acceleration.y,
-                      imu.linear_acceleration.z},
-      Eigen::Vector3d{imu.angular_velocity.x, imu.angular_velocity.y,
-                      imu.angular_velocity.z}});
-  auto pose = pose_extraplotor->ExtrapolatePose(FromRos(imu.header.stamp));
+      Eigen::Vector3d{imu.linear_acceleration.z, -imu.linear_acceleration.x,
+                      -imu.linear_acceleration.y},
+      Eigen::Vector3d{imu.angular_velocity.z, -imu.angular_velocity.x,
+                      -imu.angular_velocity.y}});
+
+}
+void HandleRtkMessage(const sensor_msgs::NavSatFix::ConstPtr &msg1) {
+  const sensor_msgs::NavSatFix &gps = *msg1;
+  if (isnan(gps.latitude) || isnan(gps.longitude) || isnan(gps.altitude)) {
+    return;
+  }
+  if (ecef_to_local_frame == nullptr) {
+    ecef_to_local_frame =
+        std::make_unique<Eigen::Affine3d>(ComputeLocalFrameFromLatLong(
+            gps.latitude, gps.longitude, gps.altitude));
+    std::cout << std::setprecision(12)
+              << ecef_to_local_frame->translation().transpose();
+  }
+  Eigen::Vector3d lat_pose =
+      *ecef_to_local_frame *
+      LatLongAltToEcef(gps.latitude, gps.longitude, gps.altitude);
+  sensor::FixedFramePoseData fix_data{
+      FromRos(gps.header.stamp), transform::Rigid3d::Translation(lat_pose),
+      Eigen::Map<const Eigen::Matrix3d>(gps.position_covariance.data())};
+//   PubRtkData(fix_data.pose);
+  PubRtkDataMark(fix_data.pose);
+
+  pose_extraplotor->AddFixedFramePoseData(fix_data);
+  auto pose = pose_extraplotor->ExtrapolatePose(FromRos(gps.header.stamp));
   PubFusionData(pose);
 }
 
@@ -158,6 +244,9 @@ int main(int argc, char **argv) {
   LOG(INFO) << "start fusion";
   ros::NodeHandle nh;
   path_publisher = nh.advertise<nav_msgs::Path>("pose_path", 1);
+  rtk_path_publisher = nh.advertise<nav_msgs::Path>("rtk_path", 1);
+  markpub =
+      nh.advertise<visualization_msgs::MarkerArray>("mark_rtk_path", 10);
   tf_broadcaster = new tf::TransformBroadcaster();
   options = neptune::LodeOptions(
       "/home/lyp/project/catkin_ws/src/mower_location/neptune/"
@@ -168,7 +257,9 @@ int main(int argc, char **argv) {
   ros::Subscriber odom_subscrib =
       nh.subscribe<nav_msgs::Odometry>("odom", 10, HandleOdometryMessage);
   ros::Subscriber imu_subscrib =
-      nh.subscribe<sensor_msgs::Imu>("imu", 10, HandleImuMessage);
+      nh.subscribe<sensor_msgs::Imu>("/camera/imu", 10, HandleImuMessage);
+  ros::Subscriber rtk_subscrib =
+      nh.subscribe<sensor_msgs::NavSatFix>("fix", 10, HandleRtkMessage);
 
   FusionOption fusion_opt;
   fusion_opt.use_fustion_type = options.fustion_options.location_use_type;
