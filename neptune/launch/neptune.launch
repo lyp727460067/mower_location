@@ -1,6 +1,6 @@
 <launch>
 
-<node pkg="neptune" type="neptune_main" name="neptune">
+<node pkg="neptune" type="neptune.location_main" name="neptune">
 
 </node>
 
