@@ -242,7 +242,7 @@ const Eigen::Matrix<double, 9, 9> PoseExtrapolatorVari() {
 LocalPoseFusion::LocalPoseFusion(const LocalPoseFusionOption& option)
     : option_(option) {
   motion_filter_ =
-      std::make_unique<MotionFilter>(MotionFilterOptions{100, 0.1, 1});
+      std::make_unique<MotionFilter>(MotionFilterOptions{10, 0.2, 3.14159});
 }
 std::pair<std::array<double, 3>, std::array<double, 4>> ToCeresPose(
     const transform::Rigid3d& pose) {
@@ -381,6 +381,7 @@ LocalPoseFusion::UpdataPose(const transform::Rigid3d pose_expect,
   return pose_.second;
   // extrapolator_->AddPose(fix_data.time, pose_expect);
 }
+//transform::Rigid3d g_pose;
 std::unique_ptr<transform::Rigid3d> LocalPoseFusion::AddFixedFramePoseData(
     const sensor::FixedFramePoseData &fix_data) {
   if (extrapolator_ == nullptr) {
@@ -396,23 +397,26 @@ std::unique_ptr<transform::Rigid3d> LocalPoseFusion::AddFixedFramePoseData(
       pose_update = pose_expect;
     } else {
       pose_update = CeresUpdata(pose_expect, fix_data);
+      auto g_pose = pose_gps_to_local_.inverse() * pose_update;
       if (extrapolator_pub_ == nullptr) {
         extrapolator_pub_ =
             std::make_unique<PoseExtrapolator>(common::FromSeconds(0.001), 10.);
       }
-      extrapolator_pub_->AddPose(fix_data.time,
-                                 pose_gps_to_local_.inverse() * pose_update);
-    }
-  }
+   //   extrapolator_pub_->AddPose(fix_data.time,
+    //                            g_pose); 
 
-  extrapolator_->AddPose(fix_data.time,pose_expect);
+
+    }
+
+  }
+    extrapolator_->AddPose(fix_data.time,pose_expect);
   return std::make_unique<transform::Rigid3d>();
 }
 void LocalPoseFusion::AddImuData(const sensor::ImuData& imu_data) {
   if (extrapolator_ != nullptr) {
     extrapolator_->AddImuData(imu_data);
     if (extrapolator_pub_ != nullptr) {
-      extrapolator_pub_->AddImuData(imu_data);
+  //    extrapolator_pub_->AddImuData(imu_data);
     }
     return;
   }
@@ -420,9 +424,16 @@ void LocalPoseFusion::AddImuData(const sensor::ImuData& imu_data) {
       location::PoseExtrapolatorInterface::CreateWithImuData({imu_data});
 }
 transform::Rigid3d LocalPoseFusion::ExtrapolatePose(common::Time time) {
-  if (extrapolator_pub_ != nullptr) {
-   return  extrapolator_pub_->ExtrapolatePose(time);
+  //if (extrapolator_pub_ != nullptr) {
+  // return  extrapolator_pub_->ExtrapolatePose(time);
+ // }
+if (extrapolator_ != nullptr) {
+   return pose_gps_to_local_.inverse()* extrapolator_->ExtrapolatePose(time);
   }
+
+
+
+  //auto g_pose =  * pose_update;
   return transform::Rigid3d::Identity();
 }
 void LocalPoseFusion::AddOdometryData(
@@ -433,9 +444,9 @@ void LocalPoseFusion::AddOdometryData(
     return;
   }
   extrapolator_->AddOdometryData(odometry_data);
-  if (extrapolator_pub_ != nullptr) {
+//  if (extrapolator_pub_ != nullptr) {
     extrapolator_pub_->AddOdometryData(odometry_data);
-  }
+ // }
 }
 
 LocalPoseFusionWithEskf::LocalPoseFusionWithEskf(

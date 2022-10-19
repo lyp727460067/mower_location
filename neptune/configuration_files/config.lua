@@ -48,8 +48,8 @@ neptune = {
             fustion_type = 1,
             fix_weitht_traslation= 10.1,
             fix_weitht_rotation  = 0;
-            extraplaton_weitht = 1,
-            slide_windows_num  =10,
+            extraplaton_weitht = 0.2,
+            slide_windows_num  =20,
         }
     },
     sensor_extrinsic = {
