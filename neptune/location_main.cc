@@ -61,11 +61,37 @@ Eigen::Vector3d LatLongAltToEcef(const double latitude, const double longitude,
 
   return Eigen::Vector3d(x, y, z);
 }
-
+constexpr char kGpsInitFile[] = "/home/wheeltec/gps.txt";
 std::unique_ptr<Eigen::Affine3d> ecef_to_local_frame = nullptr;
 Eigen::Affine3d ComputeLocalFrameFromLatLong(const double latitude,
                                              const double longitude,
                                              const double alt) {
+  std::ifstream gps_file(kGpsInitFile);
+  if (gps_file.good()) { //
+    std::string line;
+    if (std::getline(gps_file, line)) {
+      std::istringstream iss(line);
+      double lat;
+      double lon;
+      double alt1;
+      iss >> lat >> lon >> alt1;
+      std::cout << std::setprecision(20) << lat << "," << lon << "," << alt1
+                << std::endl;
+      const Eigen::Vector3d translation = LatLongAltToEcef(lat, lon, alt1);
+      const Eigen::Quaterniond rotation =
+          Eigen::AngleAxisd(DegToRad(lat - 90.), Eigen::Vector3d::UnitY()) *
+          Eigen::AngleAxisd(DegToRad(-lon), Eigen::Vector3d::UnitZ());
+      Eigen::Translation3d translatioin{rotation * -translation};
+      gps_file.close();
+      return translatioin * rotation;
+    }
+  } else {
+    std::ofstream out(kGpsInitFile);
+    out << std::setprecision(20) << latitude << " " << longitude << " " << alt
+        << std::endl;
+    out.close();
+  }
+
   const Eigen::Vector3d translation =
       LatLongAltToEcef(latitude, longitude, alt);
   const Eigen::Quaterniond rotation =
@@ -75,7 +101,7 @@ Eigen::Affine3d ComputeLocalFrameFromLatLong(const double latitude,
   Eigen::Translation3d translatioin{rotation * -translation};
   return translatioin * rotation;
 }
-
+ FusionOption fusion_opt;
 std::unique_ptr<FustionInterface> pose_extraplotor;
 constexpr int64 kUtsEpochOffsetFromUnixEpochInSeconds =
     (719162ll * 24ll * 60ll * 60ll);
@@ -127,29 +153,32 @@ void PubFusionData(const transform::Rigid3d &pose) {
 nav_msgs::Path rtk_path;
 ros::Publisher rtk_path_publisher;
 void PubRtkData(const transform::Rigid3d &pose) {
-  const Eigen::Vector3d &translation = pose.translation();
-  const Eigen::Quaterniond &rotaion = pose.rotation();
-  //
-  geometry_msgs::PoseStamped this_pose_stamped;
-  static int index = 0;
-  path.header.frame_id = "map";
-  this_pose_stamped.pose = geometry_msgs::Pose();
-  this_pose_stamped.pose.position.x = translation.x();
-  this_pose_stamped.pose.position.y = translation.y();
-  this_pose_stamped.pose.position.z = translation.z();
-  this_pose_stamped.pose.orientation.x = rotaion.x();
-  this_pose_stamped.pose.orientation.y = rotaion.y();
-  this_pose_stamped.pose.orientation.z = rotaion.z();
-  this_pose_stamped.pose.orientation.w = rotaion.w();
-  this_pose_stamped.header.seq = ++index;
-  this_pose_stamped.header.stamp = ros::Time::now();
-  this_pose_stamped.header.frame_id = "map";
-  rtk_path.poses.push_back(this_pose_stamped);
-  rtk_path_publisher.publish(path);
+  if (rtk_path_publisher.getNumSubscribers() != 0) {
+    const Eigen::Vector3d &translation = pose.translation();
+    const Eigen::Quaterniond &rotaion = pose.rotation();
+    //
+    geometry_msgs::PoseStamped this_pose_stamped;
+    static int index = 0;
+    path.header.frame_id = "map";
+    this_pose_stamped.pose = geometry_msgs::Pose();
+    this_pose_stamped.pose.position.x = translation.x();
+    this_pose_stamped.pose.position.y = translation.y();
+    this_pose_stamped.pose.position.z = translation.z();
+    this_pose_stamped.pose.orientation.x = rotaion.x();
+    this_pose_stamped.pose.orientation.y = rotaion.y();
+    this_pose_stamped.pose.orientation.z = rotaion.z();
+    this_pose_stamped.pose.orientation.w = rotaion.w();
+    this_pose_stamped.header.seq = ++index;
+    this_pose_stamped.header.stamp = ros::Time::now();
+    this_pose_stamped.header.frame_id = "map";
+    rtk_path.poses.push_back(this_pose_stamped);
+    rtk_path_publisher.publish(path);
+  }
 }
 ros::Publisher markpub;
 visualization_msgs::Marker mark;
 void PubRtkDataMark(const transform::Rigid3d &pose) {
+if(markpub.getNumSubscribers()!=0){  
   visualization_msgs::MarkerArray marks;
   std::default_random_engine e;
   int mark_id = 0;
@@ -181,6 +210,8 @@ void PubRtkDataMark(const transform::Rigid3d &pose) {
   LOG_EVERY_N(INFO, 10) << "still pub path in:";
   markpub.publish(marks);
 }
+}
+std::mutex mute;
 void HandleImuMessage(const sensor_msgs::Imu::ConstPtr &msg1) {
   const sensor_msgs::Imu &imu = *msg1;
   pose_extraplotor->AddImuData(sensor::ImuData{
@@ -191,11 +222,28 @@ void HandleImuMessage(const sensor_msgs::Imu::ConstPtr &msg1) {
                       -imu.angular_velocity.y}});
 
 }
+sensor_msgs::NavSatFix gnav_fix;
+
+void HandlClean(const std_msgs::Empty::ConstPtr msg) {
+  if (remove(kGpsInitFile) == 0) {
+    ecef_to_local_frame =
+        std::make_unique<Eigen::Affine3d>(ComputeLocalFrameFromLatLong(
+            gnav_fix.latitude, gnav_fix.longitude, gnav_fix.altitude));
+  std::lock_guard<std::mutex> lock(mute);
+  path.poses.clear(); 
+  rtk_path.poses.clear();
+  mark.points.clear();
+  pose_extraplotor = FustionInterface::CreatFusion(fusion_opt);
+  }
+};
+
 void HandleRtkMessage(const sensor_msgs::NavSatFix::ConstPtr &msg1) {
+  std::lock_guard<std::mutex> lock(mute);
   const sensor_msgs::NavSatFix &gps = *msg1;
   if (isnan(gps.latitude) || isnan(gps.longitude) || isnan(gps.altitude)) {
     return;
   }
+  gnav_fix = gps;
   if (ecef_to_local_frame == nullptr) {
     ecef_to_local_frame =
         std::make_unique<Eigen::Affine3d>(ComputeLocalFrameFromLatLong(
@@ -218,6 +266,8 @@ void HandleRtkMessage(const sensor_msgs::NavSatFix::ConstPtr &msg1) {
 }
 
 void HandleOdometryMessage(const nav_msgs::Odometry::ConstPtr &msg) {
+
+  std::lock_guard<std::mutex> lock(mute);
   const nav_msgs::Odometry &odom = *msg;
 //   const Eigen::Vector3d translation{odom.pose.pose.position.x,
 //                                     odom.pose.pose.position.y,
@@ -260,8 +310,9 @@ int main(int argc, char **argv) {
       nh.subscribe<sensor_msgs::Imu>("/camera/imu", 10, HandleImuMessage);
   ros::Subscriber rtk_subscrib =
       nh.subscribe<sensor_msgs::NavSatFix>("fix", 10, HandleRtkMessage);
+  ros::Subscriber clean_subscrib =
+      nh.subscribe<std_msgs::Empty>("gps_file_clean", 10, HandlClean);
 
-  FusionOption fusion_opt;
   fusion_opt.use_fustion_type = options.fustion_options.location_use_type;
   fusion_opt.local_pose_option = options.fustion_options.local_pose_option;
   fusion_opt.ekf_option.ekf_option.imu_to_gps =
